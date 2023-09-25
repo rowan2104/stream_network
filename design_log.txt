@@ -1,0 +1,7 @@
+First byte: Packet Type byte
+bit 0: data or control
+10000000 : heartbeat
+10000001 : request connection
+
+
+00000000 : log_message

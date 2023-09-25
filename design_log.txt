@@ -5,3 +5,5 @@ bit 0: data or control
 
 
 00000000 : log_message
+
+test2

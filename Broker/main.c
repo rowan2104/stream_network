@@ -31,7 +31,7 @@ int create_listening_socket() {
     serverAddr.sin_addr.s_addr = INADDR_ANY;
     serverAddr.sin_port = htons(PORT);
 
-    int rc = bind(serverSocket, (struct sockaddr *)&serverAddr, sizeof(serverAddr))
+    int rc = bind(serverSocket, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
     if (rc < 0) {
         printf("Error binding server socket, return code %i\n", rc);
         exit(1);

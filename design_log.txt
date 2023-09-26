@@ -1,9 +1,27 @@
 First byte: Packet Type byte
 bit 0: data or control
-10000000 : heartbeat
-10000001 : request connection
+
+1000 : request disconnect
+1001 : request connection
+
+1010 : disconnected
+1011 : connected
 
 
-00000000 : log_message
+1100 : request unsubscribe
+1101 : request subscribed
 
-test2
+1111 : subscribed
+1110 : unsubscribe
+
+
+0000 : log_message
+0001 : critical message
+
+0010 : video frame
+0110 : audio frame
+0100 : text frame
+
+0011 :
+0111 :
+0101 :

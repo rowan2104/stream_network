@@ -1,17 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#pragma pack(push, 1) // Disable structure padding
-typedef struct {
-    unsigned char signature[2];
+// Define a BMP header struct with packed attribute
+struct BMPHeader {
+    char signature[2];
     unsigned int fileSize;
     unsigned int reserved;
     unsigned int dataOffset;
-} BMPHeader;
-#pragma pack(pop)
-
-#pragma pack(push, 1)
-typedef struct {
     unsigned int headerSize;
     int width;
     int height;
@@ -23,29 +18,24 @@ typedef struct {
     int yResolution;
     unsigned int colors;
     unsigned int importantColors;
-} BMPInfoHeader;
-#pragma pack(pop)
+} __attribute__((packed));
 
 typedef struct {
     int size;
     unsigned char * pixelData;
 } BMPImage;
 
-int main() {
-    FILE *file = fopen("your_image.bmp", "rb"); // Open the BMP file in binary mode
-
-    if (!file) {
-        perror("Error opening file");
-        return 1;
+BMPImage * read_BMP_Image(char * filename){
+    FILE *file = fopen(filename, "rb"); // Open the BMP file in binary mode
+    if (file == 0) {
+        printf("Error opening file %s!\n", filename);
+        return void;
     }
 
     BMPHeader header;
-    BMPInfoHeader infoHeader;
 
     // Read BMP header
     fread(&header, sizeof(header), 1, file);
-    fread(&infoHeader, sizeof(infoHeader), 1, file);
-
     // Check if it's a valid BMP file
     if (header.signature[0] != 'B' || header.signature[1] != 'M') {
         fprintf(stderr, "Not a valid BMP file\n");
@@ -53,7 +43,7 @@ int main() {
         return 1;
     }
 
-    int imageSize = infoHeader.width * infoHeader.height * (infoHeader.bitsPerPixel / 8);
+    int imageSize = header.width * header.height * (header.bitsPerPixel / 8);
     unsigned char *imageData = (unsigned char *)malloc(imageSize);
 
     if (!imageData) {
@@ -67,6 +57,10 @@ int main() {
     fread(imageData, 1, imageSize, file);
 
     fclose(file);
+}
+
+int main() {
+
 
     // Now, 'imageData' contains the pixel data of the BMP image
 

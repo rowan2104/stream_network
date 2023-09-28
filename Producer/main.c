@@ -45,7 +45,6 @@ void send_UDP_datagram(int clientSocket, unsigned char * buffer, int buf_size, s
 
 int main(int argc, char *argv[]) {
     printf("Server Container now running!\n");
-
     char * BROKER_IP_ADDRESS = "172.22.0.3"; //Broker IP
     const int DESTINATION_PORT = 50000;
 

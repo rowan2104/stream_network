@@ -15,6 +15,7 @@ networks:
 
 services:
     producer:
+      container_name: producer
       image: stream_network
       working_dir: /work_space/Producer
       stdin_open: true  # Keep stdin open
@@ -27,6 +28,7 @@ services:
           ipv4_address: 172.22.0.2
 
     broker:
+      container_name: broker
       image: stream_network
       working_dir: /work_space/Broker
       stdin_open: true  # Keep stdin open
@@ -40,6 +42,7 @@ services:
 
 
     consumer:
+      container_name: consumer
       image: stream_network
       working_dir: /work_space/Consumer
       stdin_open: true  # Keep stdin open

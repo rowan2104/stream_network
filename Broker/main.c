@@ -7,7 +7,7 @@
 #include <unistd.h>
 
 #define PORT 50000  // The port on which the server will listen
-#define MAX_BUFFER_SIZE 4096  // Maximum buffer size for incoming messages
+#define MAX_BUFFER_SIZE 65536  // Maximum buffer size for incoming messages
 
 
 int create_local_socket(){

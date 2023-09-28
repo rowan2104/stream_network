@@ -5,8 +5,9 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include "bmp_utils.c"
 
-#define MAX_BUFFER_SIZE 4096  // Maximum buffer size for incoming messages
+#define MAX_BUFFER_SIZE 65536  // Maximum buffer size for incoming messages
 
 int create_local_socket(){
     int clientSocket;
@@ -42,7 +43,7 @@ void send_UDP_datagram(int clientSocket, unsigned char * buffer, int buf_size, s
     }
 }
 
-int main() {
+int main(int argc, char *argv[]) {
     printf("Server Container now running!\n");
 
     char * BROKER_IP_ADDRESS = "172.22.0.3"; //Broker IP
@@ -51,19 +52,20 @@ int main() {
     int localSocket = create_local_socket();
 
     struct sockaddr_in brokerAddr = create_destination_socket(BROKER_IP_ADDRESS, DESTINATION_PORT);
-    unsigned char message[MAX_BUFFER_SIZE];
-    message[0] = 'W';
-    message[1] = 'O';
-    message[2] = 'R';
-    message[3] = 'L';
-    message[4] = 'D';
-    message[5] = '!';
-    message[6] = '?';
-    message[7] = '.';
-    message[8] = 'A';
-    message[9] = 0;
+    unsigned char * message = malloc(MAX_BUFFER_SIZE);
+    int length = MAX_BUFFER_SIZE;
+    printf("argv[1]: %s\n", argv[0]);
+    if (strcmp(argv[1], "text") == 0){
+        printf("argv[2]: %s\n", argv[2]);
+        strcpy(message, argv[2]);
+        printf("message: %s\n", message);
+        length = strlen(message);
+    } else if (strcmp(argv[1], "image") == 0){
+        message = read_BMP_image(argv[2])->pixelData;
+        length = read_BMP_image(argv[2])->size;
+    }
 
-    send_UDP_datagram(localSocket, message, 10,brokerAddr);
+    send_UDP_datagram(localSocket, message, length,brokerAddr);
 
     // Close the socket
     close(localSocket);

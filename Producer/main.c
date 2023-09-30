@@ -9,6 +9,10 @@
 
 #define MAX_BUFFER_SIZE 65536  // Maximum buffer size for incoming messages
 
+struct packet_header{
+    char packetType;
+};
+
 int create_local_socket(){
     int clientSocket;
 
@@ -43,6 +47,8 @@ void send_UDP_datagram(int clientSocket, unsigned char * buffer, int buf_size, s
     }
 }
 
+
+
 int main(int argc, char *argv[]) {
     printf("Server Container now running!\n");
     char * BROKER_IP_ADDRESS = "172.22.0.3"; //Broker IP
@@ -56,7 +62,8 @@ int main(int argc, char *argv[]) {
     printf("argv[1]: %s\n", argv[0]);
     if (strcmp(argv[1], "text") == 0){
         printf("argv[2]: %s\n", argv[2]);
-        strcpy(message, argv[2]);
+        message[0] = 0b01000000;
+        strcpy(message+1, argv[2]);
         printf("message: %s\n", message);
         length = strlen(message);
     } else if (strcmp(argv[1], "image") == 0){

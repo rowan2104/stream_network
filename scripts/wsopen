@@ -1,2 +1,2 @@
 #!/bin/bash
-wireshark -Y '!(ip.proto == 1) && (ip.proto == 17)' -i eth1 -k --log-level critical
+wireshark -Y '(ip.proto == 17)' -i eth1 -k --log-level critical

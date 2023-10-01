@@ -5,6 +5,7 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include "bmp_utils.c"
 
 #define MAX_BUFFER_SIZE 65536  // Maximum buffer size for incoming messages
 #define BROKER_PORT 50000
@@ -76,7 +77,7 @@ int main(int argc, char *argv[]) {
     unsigned char * message = malloc(MAX_BUFFER_SIZE);
     memset(message, 0, MAX_BUFFER_SIZE);
     int length = MAX_BUFFER_SIZE;
-    printf("argv[1]: %s\n", argv[0]);
+    printf("argv[1]: %s\n", argv[1]);
     if (strcmp(argv[1], "connect") == 0) {
         message[0] = 0b10000011;
         length = strlen(message);
@@ -90,16 +91,23 @@ int main(int argc, char *argv[]) {
     memset(buffer, 0, MAX_BUFFER_SIZE);
 
     while (1){
-        printf("123\n");
+        printf("Waiting to recieved\n");
         int recv_len = recvfrom(localSocket, buffer, MAX_BUFFER_SIZE, 0, (struct sockaddr *)&sourceAddr, &sourceAddrLen);
-        printf("456\n");
+        printf("Recieved somthing\n");
 
         if (recv_len < 0) {
             perror("Error receiving data");
             exit(1);
         }
+        printf("Received packet from %s:%d\n", inet_ntoa(sourceAddr.sin_addr), ntohs(sourceAddr.sin_port));
+        printf("Control byte from %X:\n", buffer[0]);
+        if (buffer[0] == 0b01000000){
+            printf("Received text: %s\n", &buffer[1]);
 
-        printf("Received message from %s:%d: %s\n", inet_ntoa(sourceAddr.sin_addr), ntohs(sourceAddr.sin_port), buffer);
+        }   else if (buffer[0] == 0b00010000) {
+            printf("Received image, first 8 bytes: %x%x%x%x%x%x%x%x\n", buffer[1],buffer[2],buffer[3],buffer[4],buffer[5],buffer[6],buffer[7],buffer[8]);
+            createBMP("frame0.bmp", &buffer[1], 64, 64);
+        }
     }
 
 

@@ -99,15 +99,26 @@ int main() {
             exit(1);
         }
 
-        printf("Received message from %s:%d: %s\n", inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port), buffer);
+        printf("Received packet from %s:%d\n", inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port));
+        printf("Control byte from %X:\n", buffer[0]);
         if (buffer[0] == 0b01000000){
+            printf("Received text: %s\n", &buffer[1]);
             for (int i = 0; i < client_count; ++i) {
-                printf("fowarding text message to client: %s : %d\n",
+                printf("forwarding text message to client: %s : %d\n",
                        connected_clients[i].ipAddr, connected_clients[i].portNum);
                 send_UDP_datagram(serverSocket, buffer, recv_len,
                                   create_destination_socket(connected_clients[i].ipAddr, connected_clients[i].portNum));
             }
-        } else if (buffer[0] == 0b10000011){
+
+        }   else if (buffer[0] == 0b00010000) {
+            printf("Received image, first 8 bytes: %x%x%x%x%x%x%x%x\n", buffer[1],buffer[2],buffer[3],buffer[4],buffer[5],buffer[6],buffer[7],buffer[8]);
+            for (int i = 0; i < client_count; ++i) {
+                printf("forwarding image to client: %s : %d\n",
+                       connected_clients[i].ipAddr, connected_clients[i].portNum);
+                send_UDP_datagram(serverSocket, buffer, recv_len,
+                                  create_destination_socket(connected_clients[i].ipAddr, connected_clients[i].portNum));
+            }
+        }   else if (buffer[0] == 0b10000011){
             connected_clients[client_count].ipAddr = strdup(inet_ntoa(clientAddr.sin_addr));
             connected_clients[client_count].portNum = ntohs(clientAddr.sin_port);
             printf("Added client : %s : %d\n", connected_clients[client_count].ipAddr,

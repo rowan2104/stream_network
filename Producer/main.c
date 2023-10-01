@@ -51,7 +51,7 @@ void send_UDP_datagram(int clientSocket, unsigned char * buffer, int buf_size, s
 
 int main(int argc, char *argv[]) {
     printf("Server Container now running!\n");
-    char * BROKER_IP_ADDRESS = "172.22.0.3"; //Broker IP
+    char * BROKER_IP_ADDRESS = "172.22.0.3";
     const int DESTINATION_PORT = 50000;
 
     int localSocket = create_local_socket();
@@ -67,8 +67,15 @@ int main(int argc, char *argv[]) {
         printf("message: %s\n", message);
         length = strlen(message);
     } else if (strcmp(argv[1], "image") == 0){
-        message = read_BMP_image(argv[2])->pixelData;
-        length = read_BMP_image(argv[2])->size;
+        message[0] = 0b00010000;
+        BMPImage * theImage = read_BMP_image(argv[2]);
+        memcpy(message + 1, theImage->pixelData, theImage->size);
+        length = theImage->size + 1;
+    } else if (strcmp(argv[1], "connect") == 0){
+        message[0] = 0b00010000;
+        BMPImage * theImage = read_BMP_image(argv[2]);
+        memcpy(message + 1, theImage->pixelData, theImage->size);
+        length = theImage->size + 1;
     }
 
     send_UDP_datagram(localSocket, message, length,brokerAddr);

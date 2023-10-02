@@ -6,6 +6,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include "bmp_utils.c"
+#include "txt_utils.c"
 #include "send_protocol.c"
 #include "protocol_constants.h"
 
@@ -98,6 +99,7 @@ int main(int argc, char *argv[]) {
             printf("command: %s\n", input_array[0]);
             if (strcmp(input_array[0], "text") == 0) {
                 printf("Sending text to broker, filename: %s", input_array[1]);
+                length = prot_text_frame(message, input_array[1]);
             } else if (strcmp(input_array[0], "image") == 0) {
                 printf("Sending image file to broker, filename: %s", input_array[1]);
                 length = prot_video_frame(message, input_array[1]);
@@ -118,50 +120,3 @@ int main(int argc, char *argv[]) {
     printf("Server: exiting!\n");
     return 0;
 }
-
-
-/*
-int main() {
-    printf("Producer Container now running!\n");
-    int clientSocket;
-    struct sockaddr_in serverAddr;
-    socklen_t addrLen = sizeof(serverAddr);
-
-    // Server IP and Port
-    char *serverIP = "172.22.0.3"; // Replace with the target IP address
-    int serverPort = 50000; // Replace with the target port number
-
-    // Create a socket
-    if ((clientSocket = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-        perror("socket");
-        exit(1);
-    }
-
-    // Fill in the server's address information
-    memset(&serverAddr, 0, sizeof(serverAddr));
-    serverAddr.sin_family = AF_INET;
-    serverAddr.sin_port = htons(serverPort);
-    if (inet_pton(AF_INET, serverIP, &(serverAddr.sin_addr)) <= 0) {
-        perror("inet_pton");
-        exit(1);
-    }
-
-    // Create a buffer with data to send
-    unsigned char buffer[1400];
-    buffer[0] = 'W';
-    buffer[1] = 'O';
-    buffer[2] = 'A';
-    buffer[3] = 'H';
-
-    // Send the UDP packet
-    if (sendto(clientSocket, buffer, sizeof(buffer), 0, (struct sockaddr *)&serverAddr, addrLen) < 0) {
-        perror("sendto");
-        exit(1);
-    }
-
-    // Close the socket
-    close(clientSocket);
-    printf("Producer: exiting!\n");
-    return 0;
-}
-*/

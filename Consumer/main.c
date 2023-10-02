@@ -6,11 +6,14 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include "bmp_utils.c"
+#include "txt_utils.c"
+#include "protocol_constants.h"
 
 #define MAX_BUFFER_SIZE 65536  // Maximum buffer size for incoming messages
 #define BROKER_PORT 50000
 
-
+char * BROKER_IP_ADDRESS = "172.22.0.3"; //Broker IP
+const int DESTINATION_PORT = 50000;
 
 int create_local_socket(){
     int clientSocket;
@@ -65,11 +68,20 @@ void send_UDP_datagram(int clientSocket, unsigned char * buffer, int buf_size, s
 }
 
 
+void handle_packet(unsigned char * packet){
+    printf("Control byte from %X:\n", packet[0]);
+    if (packet[0] == CONTROL_TEXT_FRAME){
+        printf("Received text: %s\n", &packet[1]);
+        writeStringToFile("output_text.txt", &packet[1]);
+    }   else if (packet[0] == CONTROL_VIDEO_FRAME) {
+        printf("Received image, first 8 bytes: %x%x%x%x%x%x%x%x\n", packet[1],packet[2],packet[3],packet[4],packet[5],packet[6],packet[7],packet[8]);
+        createBMP("frame0.bmp", &packet[1], 64, 64);
+    }
+}
+
 
 int main(int argc, char *argv[]) {
     printf("Consumer Container now running!\n");
-    char * BROKER_IP_ADDRESS = "172.22.0.3"; //Broker IP
-    const int DESTINATION_PORT = 50000;
 
     int localSocket = create_listening_socket();
 
@@ -91,23 +103,14 @@ int main(int argc, char *argv[]) {
     memset(buffer, 0, MAX_BUFFER_SIZE);
 
     while (1){
-        printf("Waiting to recieved\n");
+        printf("Waiting to received\n");
         int recv_len = recvfrom(localSocket, buffer, MAX_BUFFER_SIZE, 0, (struct sockaddr *)&sourceAddr, &sourceAddrLen);
-        printf("Recieved somthing\n");
-
         if (recv_len < 0) {
             perror("Error receiving data");
             exit(1);
         }
         printf("Received packet from %s:%d\n", inet_ntoa(sourceAddr.sin_addr), ntohs(sourceAddr.sin_port));
-        printf("Control byte from %X:\n", buffer[0]);
-        if (buffer[0] == 0b01000000){
-            printf("Received text: %s\n", &buffer[1]);
-
-        }   else if (buffer[0] == 0b00010000) {
-            printf("Received image, first 8 bytes: %x%x%x%x%x%x%x%x\n", buffer[1],buffer[2],buffer[3],buffer[4],buffer[5],buffer[6],buffer[7],buffer[8]);
-            createBMP("frame0.bmp", &buffer[1], 64, 64);
-        }
+        handle_packet(buffer);
     }
 
 

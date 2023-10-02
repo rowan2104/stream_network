@@ -97,11 +97,7 @@ int main(int argc, char *argv[]) {
         } else {
             printf("command: %s\n", input_array[0]);
             if (strcmp(input_array[0], "text") == 0) {
-                printf("argv[2]: %s\n", argv[2]);
-                message[0] = 0b01000000;
-                strcpy(message + 1, argv[2]);
-                printf("message: %s\n", message);
-                length = strlen(message);
+                printf("Sending text to broker, filename: %s", input_array[1]);
             } else if (strcmp(input_array[0], "image") == 0) {
                 printf("Sending image file to broker, filename: %s", input_array[1]);
                 length = prot_video_frame(message, input_array[1]);

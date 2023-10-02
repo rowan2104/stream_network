@@ -17,3 +17,10 @@ int prot_video_frame(unsigned char * buf, char * filename){
     memcpy(&buf[1], theImage->pixelData, theImage->size);
     return theImage->size + 1;
 }
+
+int prot_text_frame(unsigned char * buf, char * filename){
+    message[0] = 0b01000000;
+    strcpy(message + 1, argv[2]);
+    printf("message: %s\n", message);
+    length = strlen(message);
+}

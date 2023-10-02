@@ -49,25 +49,25 @@ void send_UDP_datagram(int clientSocket, unsigned char * buffer, int buf_size, s
     }
 }
 
-int format_input(char *** output, char * input){
-    int space_count = 0;
-    for (int i = 0; i < strlen(input); i++) {
-        if (input[i] == ' ')
-            space_count++;
+void trimNewline(char *str) {
+    size_t len = strlen(str);
+    if (len > 0 && str[len - 1] == '\n') {
+        str[len - 1] = '\0';
     }
-    int split_count = space_count + 1;
-    char ** split_strings = malloc((split_count) * sizeof(char *));
-    split_strings[0] = &input[0];
-    int split_index = 1;
-    for (int i = 0; i < strlen(input); i++) {
-        if (input[i] == ' ') {
-            split_strings[split_index] = &input[i + 1];
-            input[i] = '\0';
-            split_index++;
-        }
+}
+
+char** splitString(char *input, int *count) {
+    char **tokens = NULL;
+    char *token = strtok(input, " ");
+    *count = 0;
+
+    while (token != NULL) {
+        tokens = realloc(tokens, (*count + 1) * sizeof(char*));
+        tokens[*count] = strdup(token);
+        (*count)++;
+        token = strtok(NULL, " ");
     }
-    memcpy(output, &split_strings, sizeof(char ***));
-    return split_count;
+    return tokens;
 }
 
 
@@ -82,31 +82,32 @@ int main(int argc, char *argv[]) {
     unsigned char * message = malloc(MAX_BUFFER_SIZE);
     int length = MAX_BUFFER_SIZE;
 
+    char userInput[1024];
 
-    char * userInput;
     while (1) {
         printf("command>");
         fgets(userInput, sizeof(userInput), stdin);
-        char ** inputs_array;
-        int input_count = format_input(&inputs_array, userInput);
+
+        trimNewline(userInput);
+        int input_count;
+        char **input_array = splitString(userInput, &input_count);
 
         if (input_count == 0){
             printf("Zero args inputted\n");
         } else {
-            if (strcmp(inputs_array[0], "text") == 0) {
+            printf("command: %s\n", input_array[0]);
+            if (strcmp(input_array[0], "text") == 0) {
                 printf("argv[2]: %s\n", argv[2]);
                 message[0] = 0b01000000;
                 strcpy(message + 1, argv[2]);
                 printf("message: %s\n", message);
                 length = strlen(message);
-            } else if (strcmp(inputs_array[0], "image") == 0) {
-                message[0] = 0b00010000;
-                BMPImage *theImage = read_BMP_image(argv[2]);
-                memcpy(message + 1, theImage->pixelData, theImage->size);
-                length = theImage->size + 1;
-            } else if (strcmp(inputs_array[0], "connect") == 0) {
-                printf("Sending connect request to broker, ID: %s", inputs_array[1]);
-                length = prot_request_connect(message, inputs_array[1]);
+            } else if (strcmp(input_array[0], "image") == 0) {
+                printf("Sending image file to broker, filename: %s", input_array[1]);
+                length = prot_video_frame(message, input_array[1]);
+            } else if (strcmp(input_array[0], "connect") == 0) {
+                printf("Sending connect request to broker, ID: %s", input_array[1]);
+                length = prot_request_connect(message, input_array[1]);
             }
 
             send_UDP_datagram(localSocket, message, length, brokerAddr);

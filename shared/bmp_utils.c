@@ -52,7 +52,7 @@ BMPImage * read_BMP_image(char * filename){
     FILE *file = fopen(filename, "rb");
 
     if (!file) {
-        printf("Error opening file");
+        perror("Error opening file\n");
         return NULL;
     }
 

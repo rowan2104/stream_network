@@ -8,8 +8,8 @@ bit 7: for control, request
 BYTE     :  PURPOSE             : SENDERS - RECIEVERS   : ARG BYTES :               : DATA
 11111111 : ERROR                : (any-any)             : 1         : error code    :
 
-10000010 : request disconnect   : (con/prod-broker)     : 0-3       : prod ID       :
-10000011 : request connection   : (con/prod-broker)     : 0-3       : prod ID       :
+10000010 : client request disconnect   : (con/prod-broker)     : 0-3       : prod ID       :
+10000011 : client request connection   : (con/prod-broker)     : 0-3       : prod ID       :
 
 10000000 : disconnected         : (broker-consumer)     : 0         :               :
 10000001 : connected            : (broker-consumer)     : 0         :               :
@@ -23,11 +23,14 @@ BYTE     :  PURPOSE             : SENDERS - RECIEVERS   : ARG BYTES :           
 10000100 : unsubscribe
 10000101 : subscribed
 
-10001011 : request stream creation
-10001010 : request stream deletion
+10001011 : prod request connect
+10001010 : prod request disconnect
 
-10001001 : request stream creation
-10001000 : request stream deletion
+10001001 : prod request connect
+10001000 : prod request disconnect
+
+1XXX1011 : request X stream creation
+1XXX1010 : request X stream deletion
 
 00000000 : log_message
 00000001 : critical message (printable)

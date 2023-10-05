@@ -7,7 +7,7 @@
 #include <unistd.h>
 #include "bmp_utils.c"
 #include "txt_utils.c"
-#include "send_protocol.c"
+#include "producer_protocol.c"
 #include "protocol_constants.h"
 
 #define MAX_BUFFER_SIZE 65536  // Maximum buffer size for incoming messages

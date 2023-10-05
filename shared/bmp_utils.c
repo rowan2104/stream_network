@@ -22,6 +22,8 @@ struct BMPHeader {
     unsigned int importantColors;
 } __attribute__((packed));
 
+
+
 typedef struct {
     int size;
     unsigned char * pixelData;

@@ -8,12 +8,14 @@
 #include "bmp_utils.c"
 #include "txt_utils.c"
 #include "protocol_constants.h"
+#include "consumer_protocol.c"
+
 
 #define MAX_BUFFER_SIZE 65536  // Maximum buffer size for incoming messages
-#define BROKER_PORT 50000
 
-char * BROKER_IP_ADDRESS = "172.22.0.3"; //Broker IP
+char * BROKER_IP_ADDRESS = "172.22.0.3";
 const int DESTINATION_PORT = 50000;
+
 
 int create_local_socket(){
     int clientSocket;
@@ -47,7 +49,7 @@ int create_listening_socket() {
     memset(&serverAddr, 0, sizeof(serverAddr));
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_addr.s_addr = INADDR_ANY;
-    serverAddr.sin_port = htons(BROKER_PORT);
+    serverAddr.sin_port = htons(DESTINATION_PORT);
 
     int rc = bind(serverSocket, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
     if (rc < 0) {
@@ -79,41 +81,69 @@ void handle_packet(unsigned char * packet){
     }
 }
 
+void trimNewline(char *str) {
+    size_t len = strlen(str);
+    if (len > 0 && str[len - 1] == '\n') {
+        str[len - 1] = '\0';
+    }
+}
 
-int main(int argc, char *argv[]) {
+char** splitString(char *input, int *count) {
+    char **tokens = NULL;
+    char *token = strtok(input, " ");
+    *count = 0;
+
+    while (token != NULL) {
+        tokens = realloc(tokens, (*count + 1) * sizeof(char *));
+        tokens[*count] = strdup(token);
+        (*count)++;
+        token = strtok(NULL, " ");
+    }
+    return tokens;
+}
+
+int main() {
     printf("Consumer Container now running!\n");
+
 
     int localSocket = create_listening_socket();
 
     struct sockaddr_in brokerAddr = create_destination_socket(BROKER_IP_ADDRESS, DESTINATION_PORT);
     unsigned char * message = malloc(MAX_BUFFER_SIZE);
     memset(message, 0, MAX_BUFFER_SIZE);
-    int length = MAX_BUFFER_SIZE;
-    printf("argv[1]: %s\n", argv[1]);
-    if (strcmp(argv[1], "connect") == 0) {
-        message[0] = 0b10000011;
-        length = strlen(message);
-    }
+    int length = -1;
 
-    send_UDP_datagram(localSocket, message, length,brokerAddr);
+    char userInput[1024];
 
-    struct sockaddr_in sourceAddr;
-    socklen_t sourceAddrLen = sizeof(sourceAddr);
-    unsigned char * buffer = malloc(MAX_BUFFER_SIZE);
-    memset(buffer, 0, MAX_BUFFER_SIZE);
+    while (1) {
+        printf("command>");
+        fgets(userInput, sizeof(userInput), stdin);
 
-    while (1){
-        printf("Waiting to received\n");
-        int recv_len = recvfrom(localSocket, buffer, MAX_BUFFER_SIZE, 0, (struct sockaddr *)&sourceAddr, &sourceAddrLen);
-        if (recv_len < 0) {
-            perror("Error receiving data");
-            exit(1);
+        trimNewline(userInput);
+        int input_count;
+        char **input_array = splitString(userInput, &input_count);
+
+        if (input_count == 0) {
+            printf("Zero args inputted\n");
+        } else {
+            printf("command: %s\n", input_array[0]);
+            if (strcmp(input_array[0], "connect") == 0) {
+                printf("Sending connect request to broker.\n");
+                length = send_cons_request_connect(message);
+            } else {
+                printf("Invalid Command!\n");
+            }
+
+            if (length > -1) {
+                send_UDP_datagram(localSocket, message, length, brokerAddr);
+                memset(message, 0, MAX_BUFFER_SIZE);
+                length = -1;
+            } else {
+                printf("Error, something has gone wrong!\n");
+            }
         }
-        printf("Received packet from %s:%d\n", inet_ntoa(sourceAddr.sin_addr), ntohs(sourceAddr.sin_port));
-        handle_packet(buffer);
+
     }
-
-
 
     // Close the socket
     close(localSocket);

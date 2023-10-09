@@ -12,9 +12,7 @@
 
 #define MAX_BUFFER_SIZE 65536  // Maximum buffer size for incoming messages
 
-struct packet_header{
-    char packetType;
-};
+
 
 int create_local_socket(){
     int clientSocket;

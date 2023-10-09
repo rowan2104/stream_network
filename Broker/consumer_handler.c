@@ -1,31 +1,30 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-struct producer{
-    address paddr;
-    unsigned char id[3];
+struct consumer{
+    address caddr;
     char * name;
 };
 
-struct producer_node {
-    struct producer* prod;
-    struct producer_node* next;
+struct consumer_node {
+    struct consumer* cons;
+    struct consumer_node* next;
 };
 
-struct producer_list {
-    struct producer_node* head;
+struct consumer_list {
+    struct consumer_node* head;
     int size;
 };
 
-// Function to append a producer to the list
-void appendProducer(struct producer_list* list, struct producer* prod) {
-    struct producer_node* newNode = malloc(sizeof(struct producer_node));;
-    newNode->prod = prod;
+// Function to append a consumer to the list
+void appendConsumer(struct consumer_list* list, struct consumer* cons) {
+    struct consumer_node* newNode = malloc(sizeof(struct consumer_node));;
+    newNode->cons = cons;
     newNode->next = NULL;
     if (list->head == NULL) {
         list->head = newNode;
     } else {
-        struct producer_node* current = list->head;
+        struct consumer_node* current = list->head;
         while (current->next != NULL) {
             current = current->next;
         }
@@ -34,52 +33,52 @@ void appendProducer(struct producer_list* list, struct producer* prod) {
     list->size++;
 }
 
-// Function to remove a producer at a given position
-void removeProducer(struct producer_list* list, int position) {
+// Function to remove a consumer at a given position
+void removeConsumer(struct consumer_list* list, int position) {
     if (position < 0 || position >= list->size) {
         printf("Invalid position for removal\n");
         return;
     }
 
     if (position == 0) {
-        struct producer_node* temp = list->head;
+        struct consumer_node* temp = list->head;
         list->head = list->head->next;
         free(temp);
     } else {
-        struct producer_node* current = list->head;
+        struct consumer_node* current = list->head;
         for (int i = 0; i < position - 1; i++) {
             current = current->next;
         }
-        struct producer_node* temp = current->next;
+        struct consumer_node* temp = current->next;
         current->next = temp->next;
         free(temp);
     }
     list->size--;
 }
 
-// Function to get a producer at a given position
-struct producer* getProducer(struct producer_list* list, int position) {
+// Function to get a consumer at a given position
+struct consumer* getConsumer(struct consumer_list* list, int position) {
     if (position < 0 || position >= list->size || list->head == NULL) {
         return NULL;
     }
 
-    struct producer_node* current = list->head;
+    struct consumer_node* current = list->head;
     for (int i = 0; i < position; i++) {
         if (current == NULL) {
             return NULL;
         }
         current = current->next;
     }
-    if (current == NULL || current->prod == NULL) {
+    if (current == NULL || current->cons == NULL) {
         return NULL;
     }
-    return current->prod;
+    return current->cons;
 }
 
-void freeProducerList(struct producer_list* list) {
-    struct producer_node* current = list->head;
+void freeConsumerList(struct consumer_list* list) {
+    struct consumer_node* current = list->head;
     while (current != NULL) {
-        struct producer_node* temp = current;
+        struct consumer_node* temp = current;
         current = current->next;
         free(temp);
     }

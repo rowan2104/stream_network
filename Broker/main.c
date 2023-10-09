@@ -8,6 +8,7 @@
 #include "protocol_constants.h"
 #include "broker_structs.h"
 #include "producer_handler.c"
+#include "consumer_handler.c"
 #include "broker_protocol.c"
 
 
@@ -17,12 +18,13 @@
 
 
 
+address dest_addr;
+address source_addr;
 
-
-struct consumer * connected_clients[MAX_CLIENTS+1] = {0};
 struct  producer_list * connected_producers;
+struct  consumer_list * connected_consumers;
 
-
+int serverSocket;
 
 
 int create_local_socket(){
@@ -78,14 +80,49 @@ void send_UDP_datagram(int clientSocket, unsigned char * buffer, int buf_size, s
     }
 }
 
+void handle_packet(unsigned char * buffer){
+    printf("Control byte from %X:\n", buffer[0]);
+    int length = -1;
+    if (buffer[0] == CONTROL_PROD_REQUEST_CONNECT){
+        int result = recv_prod_request_connect(buffer, connected_producers, source_addr);
+        if (result != -1){
+            printf("sending connection confirmed to ");
+            print_id(getProducer(connected_producers, result)->id);
+            printf("\n");
+            buffer[0] = CONTROL_PROD_CONNECT;
+            memcpy(&buffer[1], getProducer(connected_producers, result)->id, 3);
+            length = 4;
+            dest_addr = getProducer(connected_producers, result)->paddr;
+        }
+    } else if (buffer[0] == CONTROL_CONS_REQUEST_CONNECT){
+        int result = recv_cons_request_connect(buffer, connected_consumers, source_addr);
+        if (result != -1){
+            printf("sending connection confirmed client at %s:%hu\n", source_addr.ipAddr, source_addr.portNum);
+            buffer[0] = CONTROL_CONS_CONNECT;
+            length = 4;
+            dest_addr = getConsumer(connected_consumers, result)->caddr;
+        }
+    }
+
+    if (length != -1) {
+        send_UDP_datagram(serverSocket, buffer, length,
+                          create_destination_socket(dest_addr.ipAddr, dest_addr.portNum));
+        length = -1;
+    }
+}
+
 
 int main() {
     printf("Broker starting!\n");
 
-    int serverSocket = create_listening_socket();
+    serverSocket = create_listening_socket();
     connected_producers = malloc(sizeof(struct producer_list));
     connected_producers->head = NULL;
     connected_producers->size = 0;
+
+    connected_consumers = malloc(sizeof(struct consumer_list));
+    connected_consumers->head = NULL;
+    connected_consumers->size = 0;
 
     struct sockaddr_in clientAddr;
     socklen_t clientAddrLen = sizeof(clientAddr);
@@ -94,22 +131,18 @@ int main() {
 
     printf("Server listening on port %d...\n", PORT);
 
+
+
     while (1) {
         int recv_len = recvfrom(serverSocket, buffer, MAX_BUFFER_SIZE, 0, (struct sockaddr *)&clientAddr, &clientAddrLen);
         if (recv_len < 0) {
             perror("Error receiving data");
             exit(1);
         }
-
+        source_addr.ipAddr = strdup(inet_ntoa(clientAddr.sin_addr));
+        source_addr.portNum = ntohs(clientAddr.sin_port);
         printf("Received packet from %s:%d\n", inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port));
-        printf("Control byte from %X:\n", buffer[0]);
-        if (buffer[0] == CONTROL_PROD_REQUEST_CONNECT){
-            address source_addr;
-            source_addr.ipAddr = strdup(inet_ntoa(clientAddr.sin_addr));
-            source_addr.portNum = ntohs(clientAddr.sin_port);
-            recv_prod_request_connect(buffer, connected_producers, source_addr);
-        }
-
+        handle_packet(buffer);
 
 /*        if (buffer[0] == 0b01000000){
             printf("Received text: %s\n", &buffer[1]);

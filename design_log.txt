@@ -26,8 +26,8 @@ BYTE     :  PURPOSE             : SENDERS - RECIEVERS   : ARG BYTES :           
 10001011 : prod request connect
 10001010 : prod request disconnect
 
-10001001 : prod request connect
-10001000 : prod request disconnect
+10001001 : prod connect
+10001000 : prod disconnect
 
 1XXX1011 : request X stream creation
 1XXX1010 : request X stream deletion

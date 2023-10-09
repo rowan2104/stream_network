@@ -72,6 +72,8 @@ char** splitString(char *input, int *count) {
 }
 
 
+
+
 int main(int argc, char *argv[]) {
     printf("Server Container now running!\n");
     char * BROKER_IP_ADDRESS = "172.22.0.3";
@@ -81,7 +83,7 @@ int main(int argc, char *argv[]) {
 
     struct sockaddr_in brokerAddr = create_destination_socket(BROKER_IP_ADDRESS, DESTINATION_PORT);
     unsigned char * message = malloc(MAX_BUFFER_SIZE);
-    int length = MAX_BUFFER_SIZE;
+    int length = -1;
 
     char userInput[1024];
 
@@ -98,19 +100,25 @@ int main(int argc, char *argv[]) {
         } else {
             printf("command: %s\n", input_array[0]);
             if (strcmp(input_array[0], "text") == 0) {
-                printf("Sending text to broker, filename: %s", input_array[1]);
-                length = prot_text_frame(message, input_array[1]);
+                printf("Sending text to broker, filename: %s\n", input_array[1]);
+                length = send_text_frame(message, input_array[1]);
             } else if (strcmp(input_array[0], "image") == 0) {
-                printf("Sending image file to broker, filename: %s", input_array[1]);
-                length = prot_video_frame(message, input_array[1]);
+                printf("Sending image file to broker, filename: %s\n", input_array[1]);
+                length = send_video_frame(message, input_array[1]);
             } else if (strcmp(input_array[0], "connect") == 0) {
-                printf("Sending connect request to broker, ID: %s", input_array[1]);
-                length = prot_request_connect(message, input_array[1]);
+                printf("Sending connect request to broker, ID: %s\n", input_array[1]);
+                length = send_prod_request_connect(message, input_array[1]);
+            } else {
+                printf("Invalid Command!\n");
             }
 
-            send_UDP_datagram(localSocket, message, length, brokerAddr);
-            memset(message, 0, MAX_BUFFER_SIZE);
-            length = MAX_BUFFER_SIZE;
+            if (length > -1) {
+                send_UDP_datagram(localSocket, message, length, brokerAddr);
+                memset(message, 0, MAX_BUFFER_SIZE);
+                length = -1;
+            } else {
+                printf("Error, something has gone wrong!\n");
+            }
         }
 
     }

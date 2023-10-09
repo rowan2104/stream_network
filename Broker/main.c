@@ -5,24 +5,25 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include "protocol_constants.h"
+#include "broker_structs.h"
+#include "producer_handler.c"
+#include "broker_protocol.c"
+
+
 
 #define PORT 50000  // The port on which the server will listen
 #define MAX_BUFFER_SIZE 65536  // Maximum buffer size for incoming messages
-#define MAX_CLIENTS 16
 
-struct packet_header{
-    char packetType;
-};
 
-typedef struct {
-    char * ipAddr;
-    uint16_t portNum;
-} consumer;
 
-struct producer {
-    char * ipAddr;
-    int portNum;
-};
+
+
+struct consumer * connected_clients[MAX_CLIENTS+1] = {0};
+struct  producer_list * connected_producers;
+
+
+
 
 int create_local_socket(){
     int clientSocket;
@@ -82,8 +83,9 @@ int main() {
     printf("Broker starting!\n");
 
     int serverSocket = create_listening_socket();
-    consumer connected_clients[MAX_CLIENTS];
-    int client_count = 0;
+    connected_producers = malloc(sizeof(struct producer_list));
+    connected_producers->head = NULL;
+    connected_producers->size = 0;
 
     struct sockaddr_in clientAddr;
     socklen_t clientAddrLen = sizeof(clientAddr);
@@ -101,7 +103,15 @@ int main() {
 
         printf("Received packet from %s:%d\n", inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port));
         printf("Control byte from %X:\n", buffer[0]);
-        if (buffer[0] == 0b01000000){
+        if (buffer[0] == CONTROL_PROD_REQUEST_CONNECT){
+            address source_addr;
+            source_addr.ipAddr = strdup(inet_ntoa(clientAddr.sin_addr));
+            source_addr.portNum = ntohs(clientAddr.sin_port);
+            recv_prod_request_connect(buffer, connected_producers, source_addr);
+        }
+
+
+/*        if (buffer[0] == 0b01000000){
             printf("Received text: %s\n", &buffer[1]);
             for (int i = 0; i < client_count; ++i) {
                 printf("forwarding text message to client: %s : %d\n",
@@ -124,7 +134,7 @@ int main() {
             printf("Added client : %s : %d\n", connected_clients[client_count].ipAddr,
                    connected_clients[client_count].portNum);
             client_count++;
-        }
+        }*/
     }
 
     close(serverSocket);

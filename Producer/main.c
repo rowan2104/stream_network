@@ -120,8 +120,8 @@ int main() {
 
     while (1) {
         FD_ZERO(&readfds);
-        FD_SET(STDIN_FILENO, &readfds); // Add STDIN to the set
-        FD_SET(localSocket, &readfds); // Add the socket to the set
+        FD_SET(STDIN_FILENO, &readfds);
+        FD_SET(localSocket, &readfds);
         int max_fd = (STDIN_FILENO > localSocket) ? STDIN_FILENO : localSocket;
 
         if (select(max_fd + 1, &readfds, NULL, NULL, NULL) == -1) {

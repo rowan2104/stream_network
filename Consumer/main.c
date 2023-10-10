@@ -108,42 +108,71 @@ int main() {
 
     int localSocket = create_listening_socket();
 
+    struct sockaddr_in sourceAddr;
+    socklen_t sourceAddrLen = sizeof(sourceAddr);
+
+
     struct sockaddr_in brokerAddr = create_destination_socket(BROKER_IP_ADDRESS, DESTINATION_PORT);
     unsigned char * message = malloc(MAX_BUFFER_SIZE);
     memset(message, 0, MAX_BUFFER_SIZE);
+    unsigned char * buffer = malloc(MAX_BUFFER_SIZE);
+    memset(buffer, 0, MAX_BUFFER_SIZE);
     int length = -1;
 
     char userInput[1024];
 
+    fd_set readfds;
     while (1) {
-        printf("command>");
-        fgets(userInput, sizeof(userInput), stdin);
+        FD_ZERO(&readfds);
+        FD_SET(STDIN_FILENO, &readfds);
+        FD_SET(localSocket, &readfds);
+        int max_fd = (STDIN_FILENO > localSocket) ? STDIN_FILENO : localSocket;
 
-        trimNewline(userInput);
-        int input_count;
-        char **input_array = splitString(userInput, &input_count);
 
-        if (input_count == 0) {
-            printf("Zero args inputted\n");
-        } else {
-            printf("command: %s\n", input_array[0]);
-            if (strcmp(input_array[0], "connect") == 0) {
-                printf("Sending connect request to broker.\n");
-                length = send_cons_request_connect(message);
-            } else {
-                printf("Invalid Command!\n");
-            }
-
-            if (length > -1) {
-                send_UDP_datagram(localSocket, message, length, brokerAddr);
-                memset(message, 0, MAX_BUFFER_SIZE);
-                length = -1;
-            } else {
-                printf("Error, something has gone wrong!\n");
-            }
+        if (select(max_fd + 1, &readfds, NULL, NULL, NULL) == -1) {
+            perror("select");
+            exit(EXIT_FAILURE);
         }
 
+        if (FD_ISSET(STDIN_FILENO, &readfds)) {
+            fgets(userInput, sizeof(userInput), stdin);
+            trimNewline(userInput);
+            int input_count;
+            char **input_array = splitString(userInput, &input_count);
+
+            if (input_count == 0) {
+                printf("Zero args inputted\n");
+            } else {
+                printf("command: %s\n", input_array[0]);
+                if (strcmp(input_array[0], "connect") == 0) {
+                    printf("Sending connect request to broker.\n");
+                    length = send_cons_request_connect(message);
+                } else {
+                    printf("Invalid Command!\n");
+                }
+
+                if (length > -1) {
+                    send_UDP_datagram(localSocket, message, length, brokerAddr);
+                    memset(message, 0, MAX_BUFFER_SIZE);
+                    length = -1;
+                } else {
+                    printf("Error, something has gone wrong!\n");
+                }
+            }
+
+        }
+
+        if (FD_ISSET(localSocket, &readfds)) {
+            int recv_len = recvfrom(localSocket, buffer, MAX_BUFFER_SIZE, 0, (struct sockaddr *)&sourceAddr, &sourceAddrLen);
+            if (recv_len < 0) {
+                perror("Error receiving data");
+                exit(1);
+            }
+            printf("Received packet from %s:%d\n", inet_ntoa(sourceAddr.sin_addr), ntohs(sourceAddr.sin_port));
+        }
     }
+
+
 
     // Close the socket
     close(localSocket);

@@ -5,20 +5,20 @@
 #ifndef STREAM_NETWORK_PROTOCOL_CONSTANTS_H
 #define STREAM_NETWORK_PROTOCOL_CONSTANTS_H
 
-const unsigned char CONTROL_CONS_REQUEST_CONNECT = 0b10000011;
-const unsigned char CONTROL_CONS_CONNECT = 0b10000001;
+const unsigned char CONTROL_CONS_REQUEST_CONNECT = 0b10010000;
+const unsigned char CONTROL_CONS_CONNECT = 0b10010000;
 
-const unsigned char CONTROL_PROD_REQUEST_CONNECT = 0b10001011;
-const unsigned char CONTROL_PROD_CONNECT = 0b10001001;
+const unsigned char CONTROL_PROD_REQUEST_CONNECT = 0b11011000;
+const unsigned char CONTROL_PROD_CONNECT = 0b11001000;
 
-const unsigned char CONTROL_REQUEST_STREAM_CREATE = 0b10001111; //bits 1,2,3 are variable
-const unsigned char TEXT_BIT = 0b01000000; //TEXT
-const unsigned char AUDIO_BIT = 0b00100000; //AUDIO
-const unsigned char VIDEO_BIT = 0b00010000; //VIDEO
-const unsigned char TYPE_MASK = 0b10001111;
-const unsigned char CONTROL_STREAM_CREATE = 0b10001101; //bits 1,2,3 are variable
+const unsigned char CONTROL_REQUEST_STREAM_CREATE = 0b11111000; //bits 1,2,3 are variable
+const unsigned char TEXT_BIT = 0b00000100; //TEXT
+const unsigned char AUDIO_BIT = 0b00000010; //AUDIO
+const unsigned char VIDEO_BIT = 0b00000001; //VIDEO
+const unsigned char TYPE_MASK = 0b11111000;
+const unsigned char CONTROL_STREAM_CREATE = 0b10101000; //bits 1,2,3 are variable
 
-const unsigned char CONTROL_REQ_LIST_STREAM = 0b10000011;
+const unsigned char CONTROL_REQ_LIST_STREAM = 0b10010000;
 
 const unsigned char CONTROL_VIDEO_FRAME = 0b00010000;
 const unsigned char CONTROL_TEXT_FRAME = 0b01000000;

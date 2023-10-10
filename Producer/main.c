@@ -100,7 +100,7 @@ void handle_packet(unsigned char * buffer){
         printf("ERROR PACKET RECEIVED, ERROR CODE %d\n", (int) buffer[1]);
     } else if (buffer[0] == CONTROL_PROD_CONNECT){
         printf("Received Connection confirmed from broker!\n");
-    } else if ((buffer[0] & 0b10001111) == CONTROL_STREAM_CREATE){
+    } else if ((buffer[0] & TYPE_MASK) == CONTROL_STREAM_CREATE){
         printf("Received stream creation/validation from broker!\n");
     }
 }

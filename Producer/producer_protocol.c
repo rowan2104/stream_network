@@ -21,11 +21,20 @@ void hexStringToBytes(const char* hexString, unsigned char* bytes) {
     }
 }
 
-
-
 int send_prod_request_connect(unsigned char * buf, char id[6]){
     buf[0] = CONTROL_PROD_REQUEST_CONNECT;
     hexStringToBytes(id, &buf[1]);
+    int length = 4;
+    return length;
+}
+
+int send_request_stream_creation(unsigned char * buf, char type[3]){
+    buf[0] = CONTROL_REQUEST_STREAM_CREATE;
+    for (int i = 0; i < 3; i++) {
+        if (type[i] == 't'){buf[0] = buf[0] | TEXT_BIT;}
+        if (type[i] == 'v'){buf[0] = buf[0] | VIDEO_BIT;}
+        if (type[i] == 'a'){buf[0] = buf[0] | AUDIO_BIT;}
+    }
     int length = 4;
     return length;
 }

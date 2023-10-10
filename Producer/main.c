@@ -106,6 +106,9 @@ int main(int argc, char *argv[]) {
             } else if (strcmp(input_array[0], "connect") == 0) {
                 printf("Sending connect request to broker, ID: %s\n", input_array[1]);
                 length = send_prod_request_connect(message, input_array[1]);
+            } else if (strcmp(input_array[0], "stream") == 0) {
+                printf("requesting start stream of type %s\n", input_array[1]);
+                length = send_request_stream_creation(message, input_array[1]);
             } else {
                 printf("Invalid Command!\n");
             }

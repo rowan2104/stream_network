@@ -14,6 +14,12 @@ struct packet_header{
     char packetType;
 };
 
+struct stream{
+    unsigned char stremID[4];
+    unsigned char type;
+    producer * creator;
+    consumer_list;
+};
 
 
 

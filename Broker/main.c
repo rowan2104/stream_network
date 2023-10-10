@@ -6,9 +6,9 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include "protocol_constants.h"
-#include "broker_structs.h"
 #include "producer_handler.c"
 #include "consumer_handler.c"
+#include "broker_structs.h"
 #include "broker_protocol.c"
 
 
@@ -23,6 +23,7 @@ address source_addr;
 
 struct  producer_list * connected_producers;
 struct  consumer_list * connected_consumers;
+
 
 int serverSocket;
 
@@ -102,6 +103,9 @@ void handle_packet(unsigned char * buffer){
             length = 4;
             dest_addr = getConsumer(connected_consumers, result)->caddr;
         }
+    } else if (buffer[0] == CONTROL_REQUEST_STREAM_CREATE){
+        int result = recv_cons_request_connect(buffer, connected_consumers, source_addr);
+
     }
 
     if (length != -1) {

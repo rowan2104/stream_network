@@ -26,4 +26,4 @@ ENV PATH="/scripts:${PATH}"
 CMD ["bash", "-c", "2>&1"]
 #CMD ["bash", "-c", "mkdir /tmp/foobar && chmod 700 /tmp/foobar"]
 #CMD ["bash", "-c", "bash"]
-CMD ["bash", "-c", "sleep 0.8 && gcc -o main main.c && ./main && bash"]
+CMD ["bash", "-c", "sleep 1.2 && gcc -o main main.c && ./main && bash"]

@@ -32,6 +32,9 @@ BYTE     :  PURPOSE             : SENDERS - RECIEVERS   : ARG BYTES :           
 1XXX1011 : request X stream creation
 1XXX1010 : request X stream deletion
 
+1XXX1101 : X stream creation
+1XXX1100 : X stream deletion
+
 00000000 : log_message
 00000001 : critical message (printable)
 

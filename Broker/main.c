@@ -6,9 +6,9 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include "protocol_constants.h"
+#include "broker_structs.h"
 #include "producer_handler.c"
 #include "consumer_handler.c"
-#include "broker_structs.h"
 #include "broker_protocol.c"
 
 
@@ -87,9 +87,8 @@ void handle_packet(unsigned char * buffer){
     if (buffer[0] == CONTROL_PROD_REQUEST_CONNECT){
         int result = recv_prod_request_connect(buffer, connected_producers, source_addr);
         if (result != -1){
-            printf("sending connection confirmed to ");
-            print_id(getProducer(connected_producers, result)->id);
-            printf("\n");
+            printf("sending connection confirmed to %s\n",
+                   getProducer(connected_producers, result)->name);
             buffer[0] = CONTROL_PROD_CONNECT;
             memcpy(&buffer[1], getProducer(connected_producers, result)->id, 3);
             length = 4;
@@ -103,8 +102,31 @@ void handle_packet(unsigned char * buffer){
             length = 4;
             dest_addr = getConsumer(connected_consumers, result)->caddr;
         }
-    } else if (buffer[0] == CONTROL_REQUEST_STREAM_CREATE){
-        int result = recv_cons_request_connect(buffer, connected_consumers, source_addr);
+    } else if ((buffer[0] & 0b10001011) == 0b10001011){
+        printf("Received Stream creation request!\n");
+        struct stream * newStream = recv_request_create_stream(buffer, connected_producers);
+        if (newStream != NULL) {
+            struct producer *theProd = newStream->creator;
+            if (theProd->myStream == NULL) {
+                theProd->myStream = newStream;
+                printf("created a new stream %s, from producer %s\n", newStream->name, theProd->name);
+                printf("stream of type: ");
+                if (newStream->type & AUDIO_BIT) { printf("a"); }
+                if (newStream->type & VIDEO_BIT) { printf("v"); }
+                if (newStream->type & TEXT_BIT) { printf("t"); }
+                printf("\n");
+                dest_addr = theProd->paddr;
+            } else {
+                printf("stream already exists, updating!\n");
+                theProd->myStream->type = (theProd->myStream->type & 0b10001111) | (buffer[0] & 0b10001111);
+                dest_addr = theProd->paddr;
+            }
+            printf("Sending stream confirmation!\n");
+            buffer[0] = CONTROL_STREAM_CREATE | newStream->type;
+            length = 4;
+        } else {
+            printf("Error creating stream!\n");
+        }
 
     }
 

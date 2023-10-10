@@ -1,20 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-struct consumer{
-    address caddr;
-    char * name;
-};
-
-struct consumer_node {
-    struct consumer* cons;
-    struct consumer_node* next;
-};
-
-struct consumer_list {
-    struct consumer_node* head;
-    int size;
-};
 
 // Function to append a consumer to the list
 void appendConsumer(struct consumer_list* list, struct consumer* cons) {

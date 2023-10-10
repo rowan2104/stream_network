@@ -43,15 +43,18 @@ int add_new_consumer(struct consumer_list * consList, address cons_addr){
         return lastPos;
     }
     return -1;
-
-};
+}
 
 int add_new_producer(unsigned char newID[3], struct producer_list * prodList, address prod_addr){
     if (search_producers_id(newID, prodList) == -1){
         int lastPos = prodList->size;
         struct producer * temp = malloc(sizeof(struct producer));
         memcpy(&temp->paddr, &prod_addr, sizeof(address));
+        temp->name = malloc(sizeof(char)*7);
+        sprintf(temp->name, "%02x%02x%02x", newID[0], newID[1], newID[2]);
+        temp->name[6] = 0;
         memcpy(temp->id, newID, 3);
+        temp->myStream = NULL;
         appendProducer(prodList, temp);
         return lastPos;
     }
@@ -71,7 +74,6 @@ int recv_prod_request_connect(unsigned char * buf, struct producer_list * prodLi
         printf("failed to add new producer!\n");
         return -1;
     }
-
 }
 
 int recv_cons_request_connect(unsigned char * buf, struct consumer_list * consList, address cons_addr){
@@ -84,10 +86,23 @@ int recv_cons_request_connect(unsigned char * buf, struct consumer_list * consLi
         printf("failed to add new consumer!\n");
         return -1;
     }
-
 }
 
 
+struct stream *  recv_request_create_stream(unsigned char * buf, struct producer_list * prodList){
+    struct producer * currentProd = getProducer(prodList, search_producers_id(&buf[1], prodList));
+    if (currentProd == NULL){return NULL;}
+    struct stream * newStream = malloc(sizeof(struct stream));
+    memcpy(newStream->streamID, &buf[1], 3);
+    newStream->streamID[3] = 0;
+    memcpy(newStream->name, currentProd->name, 6);
+    newStream->name[6] = '0';
+    newStream->name[7] = '0';
+    newStream->name[8] = 0;
+    newStream->type = 0x00 | (buf[0] & 0b01110000);
+    newStream->creator = currentProd;
+    return newStream;
+}
 
 
 

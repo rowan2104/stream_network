@@ -1,21 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-struct producer{
-    address paddr;
-    unsigned char id[3];
-    char * name;
-};
-
-struct producer_node {
-    struct producer* prod;
-    struct producer_node* next;
-};
-
-struct producer_list {
-    struct producer_node* head;
-    int size;
-};
 
 // Function to append a producer to the list
 void appendProducer(struct producer_list* list, struct producer* prod) {

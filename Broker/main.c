@@ -102,14 +102,14 @@ void handle_packet(unsigned char * buffer){
             length = 4;
             dest_addr = getConsumer(connected_consumers, result)->caddr;
         }
-    } else if ((buffer[0] & 0b10001011) == 0b10001011){
+    } else if ((buffer[0] & TYPE_MASK) == CONTROL_REQUEST_STREAM_CREATE) {
         printf("Received Stream creation request!\n");
         struct stream * newStream = recv_request_create_stream(buffer, connected_producers);
         if (newStream != NULL) {
             struct producer *theProd = newStream->creator;
             if (theProd->myStream == NULL) {
                 theProd->myStream = newStream;
-                printf("created a new stream %s, from producer %s\n", newStream->name, theProd->name);
+                printf("created a new stream %s, from producer %s\n", theProd->myStream->name, theProd->name);
                 printf("stream of type: ");
                 if (newStream->type & AUDIO_BIT) { printf("a"); }
                 if (newStream->type & VIDEO_BIT) { printf("v"); }
@@ -118,7 +118,11 @@ void handle_packet(unsigned char * buffer){
                 dest_addr = theProd->paddr;
             } else {
                 printf("stream already exists, updating!\n");
-                theProd->myStream->type = (theProd->myStream->type & 0b10001111) | (buffer[0] & 0b10001111);
+                printf("stream of type: ");
+                if (newStream->type & AUDIO_BIT) { printf("a"); }
+                if (newStream->type & VIDEO_BIT) { printf("v"); }
+                if (newStream->type & TEXT_BIT) { printf("t"); }
+                printf("\n");
                 dest_addr = theProd->paddr;
             }
             printf("Sending stream confirmation!\n");
@@ -127,9 +131,12 @@ void handle_packet(unsigned char * buffer){
         } else {
             printf("Error creating stream!\n");
         }
-
+    } else if ((buffer[0] & TYPE_MASK) == CONTROL_REQ_LIST_STREAM) {
+        printf("Receive request list of streams request\n");
+        length = send_list_stream(buffer, connected_producers);
+        printf("Sending back list of size: %d\n", * (int * ) &buffer[1]);
+        dest_addr = source_addr;
     }
-
     if (length != -1) {
         send_UDP_datagram(serverSocket, buffer, length,
                           create_destination_socket(dest_addr.ipAddr, dest_addr.portNum));

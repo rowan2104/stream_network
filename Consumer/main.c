@@ -16,6 +16,7 @@
 char * BROKER_IP_ADDRESS = "172.22.0.3";
 const int DESTINATION_PORT = 50000;
 
+char connected;
 
 int create_local_socket(){
     int clientSocket;
@@ -70,16 +71,15 @@ void send_UDP_datagram(int clientSocket, unsigned char * buffer, int buf_size, s
 }
 
 
-void handle_packet(unsigned char * packet){
-    printf("Control byte from %X:\n", packet[0]);
-    if (packet[0] == CONTROL_TEXT_FRAME){
-        printf("Received text: %s\n", &packet[1]);
-        writeStringToFile("output_text.txt", &packet[1]);
-    }   else if (packet[0] == CONTROL_VIDEO_FRAME) {
-        printf("Received image, first 8 bytes: %x%x%x%x%x%x%x%x\n", packet[1],packet[2],packet[3],packet[4],packet[5],packet[6],packet[7],packet[8]);
-        createBMP("frame0.bmp", &packet[1], 64, 64);
+void handle_packet(unsigned char * buffer){
+    if (buffer[0] == ERROR){
+        printf("ERROR PACKET RECEIVED, ERROR CODE %d\n", (int) buffer[1]);
+    } else if (buffer[0] == CONTROL_CONS_CONNECT) {
+        printf("Received Connection confirmed from broker!\n");
+        connected = 1;
     }
 }
+
 
 void trimNewline(char *str) {
     size_t len = strlen(str);
@@ -102,9 +102,17 @@ char** splitString(char *input, int *count) {
     return tokens;
 }
 
+char *  check_for(char * input, char searchfor, char * retString){
+    for (int i = 0; i < strlen(input); ++i) {
+        if (input[i] == searchfor)
+            return retString;
+    }
+    return "";
+}
+
 int main() {
     printf("Consumer Container now running!\n");
-
+    connected = -1;
 
     int localSocket = create_listening_socket();
 
@@ -122,6 +130,7 @@ int main() {
     char userInput[1024];
 
     fd_set readfds;
+
     while (1) {
         FD_ZERO(&readfds);
         FD_SET(STDIN_FILENO, &readfds);
@@ -146,7 +155,18 @@ int main() {
                 printf("command: %s\n", input_array[0]);
                 if (strcmp(input_array[0], "connect") == 0) {
                     printf("Sending connect request to broker.\n");
+                    connected = 0;
                     length = send_cons_request_connect(message);
+                } else if (strcmp(input_array[0], "list") == 0) {
+                    printf("Requesting list of active streams.\n");
+                    if (input_count > 1){
+                        printf("restraints: only %s/%s/%s\n", check_for(input_array[1], 'a', "audio"),
+                               check_for(input_array[1], 'v', "video"), check_for(input_array[1], 't', "text"));
+                        length = send_req_list_stream(message, input_array[1]);
+                    } else {
+                        length = send_req_list_stream(message, "");
+                    }
+
                 } else {
                     printf("Invalid Command!\n");
                 }
@@ -164,15 +184,17 @@ int main() {
 
         if (FD_ISSET(localSocket, &readfds)) {
             int recv_len = recvfrom(localSocket, buffer, MAX_BUFFER_SIZE, 0, (struct sockaddr *)&sourceAddr, &sourceAddrLen);
-            if (recv_len < 0) {
-                perror("Error receiving data");
-                exit(1);
+            if (connected != -1) {
+                if (recv_len < 0) {
+                    perror("Error receiving data");
+                    exit(1);
+                }
+                printf("Received packet from %s:%d\n", inet_ntoa(sourceAddr.sin_addr), ntohs(sourceAddr.sin_port));
+                handle_packet(buffer);
+                memset(buffer, 0, MAX_BUFFER_SIZE);
             }
-            printf("Received packet from %s:%d\n", inet_ntoa(sourceAddr.sin_addr), ntohs(sourceAddr.sin_port));
         }
     }
-
-
 
     // Close the socket
     close(localSocket);

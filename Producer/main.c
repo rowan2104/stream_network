@@ -95,7 +95,15 @@ char** splitString(char *input, int *count) {
     return tokens;
 }
 
-
+void handle_packet(unsigned char * buffer){
+    if (buffer[0] == ERROR){
+        printf("ERROR PACKET RECEIVED, ERROR CODE %d\n", (int) buffer[1]);
+    } else if (buffer[0] == CONTROL_PROD_CONNECT){
+        printf("Received Connection confirmed from broker!\n");
+    } else if ((buffer[0] & 0b10001111) == CONTROL_STREAM_CREATE){
+        printf("Received stream creation/validation from broker!\n");
+    }
+}
 
 
 int main() {
@@ -143,7 +151,7 @@ int main() {
                 } else if (strcmp(input_array[0], "image") == 0) {
                     printf("Sending image file to broker, filename: %s\n", input_array[1]);
                     length = send_video_frame(message, input_array[1]);
-                } else if (strcmp(input_array[0], "connect") == 0) {
+                } else if (strcmp(input_array[0], "connect") == 0 && input_count > 1) {
                     printf("Sending connect request to broker, ID: %s\n", input_array[1]);
                     length = send_prod_request_connect(message, input_array[1]);
                     memcpy(myID, &message[1], 3);
@@ -154,7 +162,6 @@ int main() {
                 } else {
                     printf("Invalid Command!\n");
                 }
-
                 if (length > -1) {
                     send_UDP_datagram(localSocket, message, length, brokerAddr);
                     memset(message, 0, MAX_BUFFER_SIZE);
@@ -172,6 +179,8 @@ int main() {
                 exit(1);
             }
             printf("Received packet from %s:%d\n", inet_ntoa(sourceAddr.sin_addr), ntohs(sourceAddr.sin_port));
+            handle_packet(buffer);
+            memset(buffer, 0, MAX_BUFFER_SIZE);
         }
 
 

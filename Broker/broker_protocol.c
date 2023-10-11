@@ -99,9 +99,34 @@ struct stream *  recv_request_create_stream(unsigned char * buf, struct producer
     newStream->name[6] = '0';
     newStream->name[7] = '0';
     newStream->name[8] = 0;
-    newStream->type = 0x00 | (buf[0] & 0b01110000);
+    newStream->type = (buf[0] & (~TYPE_MASK));
     newStream->creator = currentProd;
     return newStream;
+}
+int send_list_stream(unsigned char * buf, struct producer_list * prodList){
+    int length = 5;
+    uint32_t num_of_streams = 0;
+    const char sizeStreamData = 5;
+    const unsigned char requestType = buf[0] & (~TYPE_MASK);
+    struct producer * current_prod;
+    for (int i = 0; i < prodList->size; ++i) {
+        current_prod = getProducer(prodList, i);
+        printf("checing of type: ");
+        if (current_prod->myStream->type & AUDIO_BIT) { printf("a"); }
+        if (current_prod->myStream->type & VIDEO_BIT) { printf("v"); }
+        if (current_prod->myStream->type & TEXT_BIT) { printf("t"); }
+        printf("\n");
+        if ((current_prod->myStream != NULL) && ((current_prod->myStream->type & requestType) != 0))
+        {
+            memcpy(&buf[5+(sizeStreamData*num_of_streams)], &current_prod->myStream->streamID, 4);
+            buf[5+(sizeStreamData*num_of_streams)+4] = current_prod->myStream->type;
+            num_of_streams++;
+            length += sizeStreamData;
+
+        }
+    }
+    memcpy(&buf[1], &num_of_streams, 4);
+    return length;
 }
 
 

@@ -118,6 +118,7 @@ void handle_packet(unsigned char * buffer){
                 dest_addr = theProd->paddr;
             } else {
                 printf("stream already exists, updating!\n");
+                theProd->myStream = newStream;
                 printf("stream of type: ");
                 if (newStream->type & AUDIO_BIT) { printf("a"); }
                 if (newStream->type & VIDEO_BIT) { printf("v"); }

@@ -29,7 +29,7 @@ int send_prod_request_connect(unsigned char * buf, char id[6]){
 }
 
 int send_request_stream_creation(unsigned char * buf, char type[3]){
-    buf[0] = CONTROL_REQUEST_STREAM_CREATE;
+    buf[0] = CONTROL_REQUEST_STREAM_UPDATE;
     for (int i = 0; i < 3; i++) {
         if (type[i] == 't'){buf[0] = buf[0] | TEXT_BIT;}
         if (type[i] == 'v'){buf[0] = buf[0] | VIDEO_BIT;}

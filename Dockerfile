@@ -5,7 +5,6 @@ RUN apt-get update
 RUN apt-get install -y gcc make net-tools netcat tcpdump inetutils-ping wireshark nano
 RUN apt-get install -y imagemagick
 
-
 # Set the working directory
 WORKDIR /work_space/
 COPY Producer /work_space/Producer

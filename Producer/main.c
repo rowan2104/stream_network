@@ -100,7 +100,7 @@ void handle_packet(unsigned char * buffer){
         printf("ERROR PACKET RECEIVED, ERROR CODE %d\n", (int) buffer[1]);
     } else if (buffer[0] == CONTROL_PROD_CONNECT){
         printf("Received Connection confirmed from broker!\n");
-    } else if ((buffer[0] & TYPE_MASK) == CONTROL_STREAM_CREATE){
+    } else if ((buffer[0] & TYPE_MASK) == CONTROL_STREAM_UPDATE){
         printf("Received stream creation/validation from broker!\n");
     }
 }
@@ -144,7 +144,6 @@ int main() {
             if (input_count == 0){
                 printf("Zero args inputted\n");
             } else {
-                printf("command: %s\n", input_array[0]);
                 if (strcmp(input_array[0], "text") == 0) {
                     printf("Sending text to broker, filename: %s\n", input_array[1]);
                     length = send_text_frame(message, input_array[1]);

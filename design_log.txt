@@ -18,8 +18,8 @@ BYTE     :  PURPOSE             : SENDERS - RECIEVERS   : ARG BYTES :           
 10110000 : request unsubscribe
 10111000 : request subscribed
 
-11100XXX : request active streams
-11101XXX : list active streams
+11110XXX : request active streams
+11100XXX : list active streams
 
 10100000 : unsubscribe
 10101000 : subscribed
@@ -30,11 +30,9 @@ BYTE     :  PURPOSE             : SENDERS - RECIEVERS   : ARG BYTES :           
 11001000 : prod connect
 11000000 : prod disconnect
 
-11111XXX : request X stream creation
-11110XXX : request X stream deletion
+11111XXX : request X stream updated (000 means delete)
 
-10101XXX : X stream creation
-10100XXX : X stream deletion
+11101XXX : X stream updated (000 means delete)
 
 00000001 : log_message
 00000011 : critical message (printable)
@@ -47,15 +45,40 @@ BYTE     :  PURPOSE             : SENDERS - RECIEVERS   : ARG BYTES :           
 0001 : client connected
 0010 : client request disconnect
 0011 : client request connect
-0100 : X stream deletion
-0101 : X stream creation
+0100 : unsubscribed
+0101 : subscribed
 0110 : request unsubscribe
 0111 : request subscribe
 1000 : prod disconnect
 1001 : prod connect
 1010 : prod request disconnect
 1011 : prod request cosconnect
-1100 :
-1101 :
-1110 : request X stream deletion
-1111 : request X stream creation
+1100 : list streams
+1101 : stream updated
+1110 : request active streams
+1111 : request stream update
+
+REQ
+cdis - ccon *
+pdis - pcon *
+pSTU : RLST *
+cuns - csub *
+
+COM
+cdis - ccon *
+pdis - pcon *
+pSTU - LIST *
+cuns - csub *
+
+
+
+
+
+01234567
+bit 0 : control or data
+
+bit 3 : request bit
+bit 4 : "yes" or "no"/ "positive" / "negative" bit
+bit 5: text
+bit 6 : audio
+bit 7: video

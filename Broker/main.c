@@ -102,7 +102,7 @@ void handle_packet(unsigned char * buffer){
             length = 4;
             dest_addr = getConsumer(connected_consumers, result)->caddr;
         }
-    } else if ((buffer[0] & TYPE_MASK) == CONTROL_REQUEST_STREAM_CREATE) {
+    } else if ((buffer[0] & TYPE_MASK) == CONTROL_REQUEST_STREAM_UPDATE) {
         printf("Received Stream creation request!\n");
         struct stream * newStream = recv_request_create_stream(buffer, connected_producers);
         if (newStream != NULL) {
@@ -127,7 +127,7 @@ void handle_packet(unsigned char * buffer){
                 dest_addr = theProd->paddr;
             }
             printf("Sending stream confirmation!\n");
-            buffer[0] = CONTROL_STREAM_CREATE | newStream->type;
+            buffer[0] = CONTROL_STREAM_UPDATE | newStream->type;
             length = 4;
         } else {
             printf("Error creating stream!\n");
@@ -137,7 +137,15 @@ void handle_packet(unsigned char * buffer){
         length = send_list_stream(buffer, connected_producers);
         printf("Sending back list of size: %d\n", * (int * ) &buffer[1]);
         dest_addr = source_addr;
+    } else if ((buffer[0] & TYPE_MASK) == CONTROL_REQ_SUBSCRIBE) {
+        printf("Recieve subscribe request from, client at %s:%hu\n", source_addr.ipAddr, source_addr.portNum);
+        length = recv_req_stream_subscribe(buffer, search_consumers_ip(source_addr.ipAddr, connected_consumers), connected_producers);
+
+    } else if (ERROR){
+        printf("RECEIVED ERROR PACKET!\n");
     }
+
+
     if (length != -1) {
         send_UDP_datagram(serverSocket, buffer, length,
                           create_destination_socket(dest_addr.ipAddr, dest_addr.portNum));

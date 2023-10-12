@@ -21,21 +21,21 @@ int search_producers_id(unsigned char newID[3], struct producer_list * prodList)
 }
 
 
-int search_consumers_ip(char * ip, struct consumer_list * consList){
+struct consumer * search_consumers_ip(char * ip, struct consumer_list * consList){
     int i = 0;
     struct producer * temp;
     while (getConsumer(consList, i) != NULL){
         if (strcmp(ip, getConsumer(consList, i)->caddr.ipAddr) == 0){
-            return i;
+            return getConsumer(consList, i);
         }
         i++;
     }
-    return -1;
+    return NULL;
 }
 
 
 int add_new_consumer(struct consumer_list * consList, address cons_addr){
-    if (search_consumers_ip(cons_addr.ipAddr, consList) == -1){
+    if (search_consumers_ip(cons_addr.ipAddr, consList) == NULL){
         int lastPos = consList->size;
         struct consumer * temp = malloc(sizeof(struct consumer));
         memcpy(&temp->caddr, &cons_addr, sizeof(address));
@@ -101,6 +101,9 @@ struct stream *  recv_request_create_stream(unsigned char * buf, struct producer
     newStream->name[8] = 0;
     newStream->type = (buf[0] & (~TYPE_MASK));
     newStream->creator = currentProd;
+    newStream->subscribers = malloc(sizeof(struct consumer_list));
+    newStream->subscribers->head = NULL;
+    newStream->subscribers->size = 0;
     return newStream;
 }
 int send_list_stream(unsigned char * buf, struct producer_list * prodList){
@@ -123,6 +126,29 @@ int send_list_stream(unsigned char * buf, struct producer_list * prodList){
     buf[0] = CONTROL_LIST_STREAM | requestType;
     memcpy(&buf[1], &num_of_streams, 4);
     return length;
+}
+
+int recv_req_stream_subscribe(unsigned char * buf, struct consumer * requester, struct producer_list * prodList){
+    int stream_exists = 0;
+    int length = 0;
+    struct producer * current_producer;
+    unsigned char packet_id[4];
+    memcpy(packet_id, &buf[1], 4);
+    for (int i = 0; i < prodList->size; ++i) {
+        current_producer = getProducer(prodList, i);
+        if (current_producer->myStream != NULL && *(uint32_t*)&packet_id == *(uint32_t*)&current_producer->myStream->streamID){
+            appendConsumer(current_producer->myStream->subscribers, requester);
+            printf("Stream %s now has subscriber %s:%hu\n", current_producer->myStream->name, requester->caddr.ipAddr,requester->caddr.portNum);
+            printf("Sending Confirmation\n");
+            buf[0] = CONTROL_SUBSCRIBE;
+            memcpy(&buf[1], current_producer->myStream->streamID, 4);
+            return 5;
+        }
+
+    }
+
+    buf[0] == ERROR;
+    return 4;
 }
 
 

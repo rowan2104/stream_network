@@ -19,6 +19,7 @@ struct stream{
     char name[9];
     unsigned char type;
     struct producer * creator;
+    struct consumer_list * subscribers;
 };
 
 struct consumer{

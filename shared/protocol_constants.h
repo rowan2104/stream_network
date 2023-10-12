@@ -11,15 +11,18 @@ const unsigned char CONTROL_CONS_CONNECT = 0b10011000;
 const unsigned char CONTROL_PROD_REQUEST_CONNECT = 0b11011000;
 const unsigned char CONTROL_PROD_CONNECT = 0b11001000;
 
-const unsigned char CONTROL_REQUEST_STREAM_CREATE = 0b11111000; //bits 1,2,3 are variable
+const unsigned char CONTROL_REQ_SUBSCRIBE = 0b11001000;
+const unsigned char CONTROL_SUBSCRIBE = 0b10101000;
+
+const unsigned char CONTROL_REQUEST_STREAM_UPDATE = 0b11111000; //bits 1,2,3 are variable
 const unsigned char TEXT_BIT = 0b00000100; //TEXT
 const unsigned char AUDIO_BIT = 0b00000010; //AUDIO
 const unsigned char VIDEO_BIT = 0b00000001; //VIDEO
 const unsigned char TYPE_MASK = 0b11111000;
-const unsigned char CONTROL_STREAM_CREATE = 0b10101000; //bits 1,2,3 are variable
+const unsigned char CONTROL_STREAM_UPDATE = 0b11101000; //bits 1,2,3 are variable
 
-const unsigned char CONTROL_REQ_LIST_STREAM = 0b11100000;
-const unsigned char CONTROL_LIST_STREAM = 0b11101000;
+const unsigned char CONTROL_REQ_LIST_STREAM = 0b11110000;
+const unsigned char CONTROL_LIST_STREAM = 0b11100000;
 
 const unsigned char CONTROL_VIDEO_FRAME = 0b00010000;
 const unsigned char CONTROL_TEXT_FRAME = 0b01000000;

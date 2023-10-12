@@ -18,6 +18,8 @@ const int DESTINATION_PORT = 50000;
 
 char connected;
 
+unsigned char * subscribed;
+
 struct stream_string{
     unsigned char id[4];
     unsigned char type;
@@ -95,8 +97,24 @@ void handle_packet(unsigned char * buffer){
     } else if ((buffer[0] & TYPE_MASK) == CONTROL_LIST_STREAM) {
         printf("Received Connection confirmed from broker!\n");
         struct list_packet* packet = (struct list_packet*)buffer;
-        printf("Header: %02x\n", packet->header);
-        printf("Size: %d\n", packet->size);
+        printf("%d streams found!\n", packet->size);
+        unsigned char tempString[5];
+        tempString[4] = 0;
+        for (int i = 0; i < packet->size; ++i) {
+            memcpy(&tempString[0], packet->listOfStream[i].id, 4);
+            printf("%02x%02x%02x%02x: ", tempString[0],tempString[1],
+                   tempString[2],tempString[3]);
+            printf("%s", (packet->listOfStream[i].type & AUDIO_BIT) ? "a" : "");
+            printf("%s", (packet->listOfStream[i].type & VIDEO_BIT) ? "v" : "");
+            printf("%s", (packet->listOfStream[i].type & TEXT_BIT) ? "t" : "");
+            if (strcmp(subscribed, tempString) == 0){
+                printf(" (SUBSCRIBED)");
+            }
+            printf("\n");
+        }
+    } else if (buffer[0] == CONTROL_SUBSCRIBE){
+        memcpy(subscribed, &buffer[1], 4);
+        printf("Recieved subscrition confirmed to %02x%02x%02x%02x\n", subscribed[0],subscribed[1],subscribed[2],subscribed[3]);
     }
 }
 
@@ -133,6 +151,9 @@ char *  check_for(char * input, char searchfor, char * retString){
 int main() {
     printf("Consumer Container now running!\n");
     connected = -1;
+    subscribed = malloc(sizeof(char)*5);
+    subscribed[4] = 0 ;
+
 
     int localSocket = create_listening_socket();
 
@@ -172,7 +193,6 @@ int main() {
             if (input_count == 0) {
                 printf("Zero args inputted\n");
             } else {
-                printf("command: %s\n", input_array[0]);
                 if (strcmp(input_array[0], "connect") == 0) {
                     printf("Sending connect request to broker.\n");
                     connected = 0;
@@ -187,6 +207,12 @@ int main() {
                         length = send_req_list_stream(message, "");
                     }
 
+                } else if (strcmp(input_array[0], "subscribe") == 0) {
+                    if (input_count < 2){printf("Error not enough arguments!\n");} else {
+                        printf("Sending subscribe request for %s broker\n", input_array[1]);
+                        if (input_count < 3){length = send_req_subscribe(message, input_array[1], "");}
+                        else {length = send_req_subscribe(message, input_array[1], input_array[2]);}
+                    }
                 } else {
                     printf("Invalid Command!\n");
                 }

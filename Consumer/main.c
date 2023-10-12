@@ -77,6 +77,9 @@ void handle_packet(unsigned char * buffer){
     } else if (buffer[0] == CONTROL_CONS_CONNECT) {
         printf("Received Connection confirmed from broker!\n");
         connected = 1;
+    } else if (buffer[0] == CONTROL_LIST_STREAM) {
+        printf("Received Connection confirmed from broker!\n");
+        connected = 1;
     }
 }
 

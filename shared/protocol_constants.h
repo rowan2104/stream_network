@@ -19,6 +19,7 @@ const unsigned char TYPE_MASK = 0b11111000;
 const unsigned char CONTROL_STREAM_CREATE = 0b10101000; //bits 1,2,3 are variable
 
 const unsigned char CONTROL_REQ_LIST_STREAM = 0b10010000;
+const unsigned char CONTROL_LIST_STREAM = 0b10000000;
 
 const unsigned char CONTROL_VIDEO_FRAME = 0b00010000;
 const unsigned char CONTROL_TEXT_FRAME = 0b01000000;

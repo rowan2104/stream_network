@@ -111,11 +111,6 @@ int send_list_stream(unsigned char * buf, struct producer_list * prodList){
     struct producer * current_prod;
     for (int i = 0; i < prodList->size; ++i) {
         current_prod = getProducer(prodList, i);
-        printf("checing of type: ");
-        if (current_prod->myStream->type & AUDIO_BIT) { printf("a"); }
-        if (current_prod->myStream->type & VIDEO_BIT) { printf("v"); }
-        if (current_prod->myStream->type & TEXT_BIT) { printf("t"); }
-        printf("\n");
         if ((current_prod->myStream != NULL) && ((current_prod->myStream->type & requestType) != 0))
         {
             memcpy(&buf[5+(sizeStreamData*num_of_streams)], &current_prod->myStream->streamID, 4);

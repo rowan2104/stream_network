@@ -10,7 +10,7 @@ BYTE     :  PURPOSE             : SENDERS - RECIEVERS   : ARG BYTES :           
 
 
 10000000 : disconnected
-10010000 : connected
+10001000 : connected
 
 10010000 : client request disconnect
 10011000 : client request connection
@@ -18,8 +18,8 @@ BYTE     :  PURPOSE             : SENDERS - RECIEVERS   : ARG BYTES :           
 10110000 : request unsubscribe
 10111000 : request subscribed
 
-10010XXX : request active streams
-10011XXX : list active streams
+11100XXX : request active streams
+11101XXX : list active streams
 
 10100000 : unsubscribe
 10101000 : subscribed
@@ -42,3 +42,20 @@ BYTE     :  PURPOSE             : SENDERS - RECIEVERS   : ARG BYTES :           
 00000001 : video frame
 00000010 : audio frame
 00000100 : text frame
+
+0000 : client disconnected
+0001 : client connected
+0010 : client request disconnect
+0011 : client request connect
+0100 : X stream deletion
+0101 : X stream creation
+0110 : request unsubscribe
+0111 : request subscribe
+1000 : prod disconnect
+1001 : prod connect
+1010 : prod request disconnect
+1011 : prod request cosconnect
+1100 :
+1101 :
+1110 : request X stream deletion
+1111 : request X stream creation

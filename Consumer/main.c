@@ -18,6 +18,21 @@ const int DESTINATION_PORT = 50000;
 
 char connected;
 
+struct stream_string{
+    unsigned char id[4];
+    unsigned char type;
+} __attribute__((packed));
+
+struct list_packet{
+    unsigned char header;
+    uint32_t size;
+    struct stream_string listOfStream[];
+
+} __attribute__((packed));
+
+
+
+
 int create_local_socket(){
     int clientSocket;
 
@@ -77,9 +92,11 @@ void handle_packet(unsigned char * buffer){
     } else if (buffer[0] == CONTROL_CONS_CONNECT) {
         printf("Received Connection confirmed from broker!\n");
         connected = 1;
-    } else if (buffer[0] == CONTROL_LIST_STREAM) {
+    } else if ((buffer[0] & TYPE_MASK) == CONTROL_LIST_STREAM) {
         printf("Received Connection confirmed from broker!\n");
-        connected = 1;
+        struct list_packet* packet = (struct list_packet*)buffer;
+        printf("Header: %02x\n", packet->header);
+        printf("Size: %d\n", packet->size);
     }
 }
 

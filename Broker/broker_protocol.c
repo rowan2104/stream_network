@@ -120,6 +120,7 @@ int send_list_stream(unsigned char * buf, struct producer_list * prodList){
 
         }
     }
+    buf[0] = CONTROL_LIST_STREAM | requestType;
     memcpy(&buf[1], &num_of_streams, 4);
     return length;
 }

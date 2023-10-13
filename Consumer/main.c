@@ -13,7 +13,7 @@
 
 #define MAX_BUFFER_SIZE 65536  // Maximum buffer size for incoming messages
 
-char * BROKER_IP_ADDRESS = "172.22.0.3";
+char * BROKER_IP_ADDRESS = "172.22.0.2";
 const int DESTINATION_PORT = 50000;
 
 char connected;

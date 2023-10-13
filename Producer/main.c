@@ -15,14 +15,14 @@
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 #include <libavutil/imgutils.h>
-#include "../shared/mp4_utils.c"
+#include "mp4_utils.c"
 
 
 
 
 
 #define MAX_BUFFER_SIZE 65536  // Maximum buffer size for incoming messages
-char * BROKER_IP_ADDRESS = "172.22.0.3";
+char * BROKER_IP_ADDRESS = "172.22.0.2";
 const int DESTINATION_PORT = 50000;
 
 char * stream_target;

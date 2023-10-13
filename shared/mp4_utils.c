@@ -118,7 +118,7 @@ int extractFrame(const char *inputFilename, int frameNum, uint8_t **frameData, i
                             }
                         }
                         free(*frameData);
-                        *frameData = flippedFrameData;.
+                        *frameData = flippedFrameData;
 
                         return 0;
                     }

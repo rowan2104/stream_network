@@ -15,7 +15,7 @@
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 #include <libavutil/imgutils.h>
-#include "mp4_utils.c"
+#include "../shared/mp4_utils.c"
 
 
 
@@ -24,6 +24,10 @@
 #define MAX_BUFFER_SIZE 65536  // Maximum buffer size for incoming messages
 char * BROKER_IP_ADDRESS = "172.22.0.3";
 const int DESTINATION_PORT = 50000;
+
+char * stream_target;
+int streaming = 0;
+unsigned char streamType = 0;
 
 
 unsigned char myID[3];
@@ -134,7 +138,7 @@ int main() {
     int frame_width = 0;
     int frame_height = 0;
     unsigned char * pixelData = NULL;
-    extractFrame("ace_combat_gameplay/video.mp4", 600, &pixelData, &frame_width, &frame_height);
+    extractFrame("ace_combat_gameplay/video.mp4", 800, &pixelData, &frame_width, &frame_height);
     createBMP("video.mp4-frame0.bmp", pixelData, frame_width, frame_height);
 
     while (1) {
@@ -169,6 +173,11 @@ int main() {
                     printf("requesting start stream of type %s\n", input_array[1]);
                     memcpy(&message[1], myID, 3);
                     length = send_request_stream_creation(message, input_array[1]);
+                } else if (strcmp(input_array[0], "target") == 0){
+                    if (input_count < 2) {printf("Error no target specified!\n");} else {
+                        stream_target = input_array[1];
+                        printf("Stream target set at %s\n", stream_target);
+                    }
                 } else {
                     printf("Invalid Command!\n");
                 }

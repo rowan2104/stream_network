@@ -18,13 +18,10 @@ RUN apt-get install -y cmake
 RUN apt-get install -y build-essential
 
 
-
 RUN apt-get install -y ffmpeg
-
 RUN apt-get install -y libavcodec-dev
 RUN apt-get install -y libavformat-dev
-
-
+RUN apt-get install -y libswscale-dev
 # Set the working directory
 WORKDIR /work_space/
 COPY Producer /work_space/Producer
@@ -47,4 +44,4 @@ ENV PATH="/scripts:${PATH}"
 CMD ["bash", "-c", "2>&1"]
 #CMD ["bash", "-c", "mkdir /tmp/foobar && chmod 700 /tmp/foobar"]
 #CMD ["bash", "-c", "bash"]
-CMD ["bash", "-c", "sleep 1.2 && gcc -o main main.c -lavformat -lavcodec -lavutil && ./main && bash"]
+CMD ["bash", "-c", "sleep 1.2 && gcc -o main main.c -lavformat -lavcodec -lavutil -lswscale &&./main && bash"]

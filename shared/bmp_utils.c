@@ -91,14 +91,14 @@ void createBMP(const char* filename, unsigned char* pixelData, int width, int he
 
     header.signature[0] = 'B';
     header.signature[1] = 'M';
-    header.fileSize = sizeof(struct BMPHeader) + (width * height * 4);
+    header.fileSize = sizeof(struct BMPHeader) + (width * height * 3);
     header.reserved = 0;
     header.dataOffset = sizeof(struct BMPHeader);
     header.headerSize = sizeof(struct BMPHeader) - 14;
     header.width = width;
     header.height = height;
     header.planes = 1;
-    header.bitsPerPixel = 32;
+    header.bitsPerPixel = 24;
     header.compression = 0;
     header.imageSize = 0;
     header.xPixelsPerMeter = 0;
@@ -109,7 +109,7 @@ void createBMP(const char* filename, unsigned char* pixelData, int width, int he
     fwrite(&header, sizeof(struct BMPHeader), 1, file);
 
 
-    fwrite(pixelData, sizeof(unsigned char), width * height * 4, file);
+    fwrite(pixelData, sizeof(unsigned char), width * height * 3, file);
 
     fclose(file);
 }

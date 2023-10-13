@@ -15,6 +15,7 @@
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 #include <libavutil/imgutils.h>
+#include "mp4_utils.c"
 
 
 
@@ -130,7 +131,11 @@ int main() {
 
     fd_set readfds; // File descriptor set for select
 
-
+    int frame_width = 0;
+    int frame_height = 0;
+    unsigned char * pixelData = NULL;
+    extractFrame("ace_combat_gameplay/video.mp4", 600, &pixelData, &frame_width, &frame_height);
+    createBMP("video.mp4-frame0.bmp", pixelData, frame_width, frame_height);
 
     while (1) {
         FD_ZERO(&readfds);

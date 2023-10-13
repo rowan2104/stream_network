@@ -12,6 +12,12 @@
 #include "txt_utils.c"
 #include "producer_protocol.c"
 #include "protocol_constants.h"
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
+#include <libavutil/imgutils.h>
+
+
+
 
 
 #define MAX_BUFFER_SIZE 65536  // Maximum buffer size for incoming messages

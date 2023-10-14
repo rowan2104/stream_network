@@ -22,6 +22,8 @@ RUN apt-get install -y ffmpeg
 RUN apt-get install -y libavcodec-dev
 RUN apt-get install -y libavformat-dev
 RUN apt-get install -y libswscale-dev
+
+RUN apt-get install -y libsdl2-dev
 # Set the working directory
 WORKDIR /work_space/
 COPY Producer /work_space/Producer
@@ -44,4 +46,4 @@ ENV PATH="/scripts:${PATH}"
 CMD ["bash", "-c", "2>&1"]
 #CMD ["bash", "-c", "mkdir /tmp/foobar && chmod 700 /tmp/foobar"]
 #CMD ["bash", "-c", "bash"]
-CMD ["bash", "-c", "sleep 1.2 && gcc -o main main.c -lavformat -lavcodec -lavutil -lswscale &&./main && bash"]
+CMD ["bash", "-c", "sleep 1.2 && gcc -g -o main main.c -lavformat -lavcodec -lavutil -lswscale `sdl2-config --cflags --libs` && ./main"]

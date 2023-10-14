@@ -39,17 +39,13 @@ int send_request_stream_creation(unsigned char * buf, char type[3]){
     return length;
 }
 
-int send_video_frame(unsigned char * buf, char * filename){
-    buf[0] = CONTROL_VIDEO_FRAME;
-    BMPImage *theImage = read_BMP_image(filename);
-    memcpy(&buf[1], theImage->pixelData, theImage->size);
-    return theImage->size + 1;
+int add_video_details(unsigned char * buf, int length, int width, int height){
+    short w = width;
+    short h = height;
+    memcpy(&buf[length], &w, 2);
+    memcpy(&buf[length+2], &h, 2);
+    return length+4;
 }
 
-int send_text_frame(unsigned char * buf, char * filename){
-    buf[0] = CONTROL_TEXT_FRAME;
-    strcpy(buf + 1, readFileIntoString(filename));
-    printf("message: %s\n", &buf[1]);
-    return strlen(buf);
-}
+
 

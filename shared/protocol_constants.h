@@ -24,8 +24,9 @@ const unsigned char CONTROL_STREAM_UPDATE = 0b11101000; //bits 1,2,3 are variabl
 const unsigned char CONTROL_REQ_LIST_STREAM = 0b11110000;
 const unsigned char CONTROL_LIST_STREAM = 0b11100000;
 
-const unsigned char CONTROL_VIDEO_FRAME = 0b00010000;
-const unsigned char CONTROL_TEXT_FRAME = 0b01000000;
+
+const unsigned char DATA_VIDEO_FRAME = 0b00000001;
+const unsigned char DATA_TEXT_FRAME = 0b00000100;
 
 const unsigned char ERROR = 0b00000000;
 

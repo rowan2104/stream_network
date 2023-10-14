@@ -5,7 +5,7 @@ void print_id(unsigned char * buf){
     }
 }
 
-int search_producers_id(unsigned char newID[3], struct producer_list * prodList){
+struct producer * search_producers_id(unsigned char newID[3], struct producer_list * prodList){
     int i = 0;
     int y = (newID[0] << 0) | (newID[1] << 8) | (newID[2] << 16);
     struct producer * temp;
@@ -13,11 +13,11 @@ int search_producers_id(unsigned char newID[3], struct producer_list * prodList)
         temp = getProducer(prodList, i);
         int x = (temp->id[0] << 0) | (temp->id[1] << 8) | (temp->id[2] << 16);
         if (x == y){
-            return i;
+            return temp;
         }
         i++;
     }
-    return -1;
+    return NULL;
 }
 
 
@@ -33,12 +33,25 @@ struct consumer * search_consumers_ip(char * ip, struct consumer_list * consList
     return NULL;
 }
 
+struct producer * search_producer_ip(char * ip, struct producer_list * prodList){
+    int i = 0;
+    struct producer * temp;
+    while (getProducer(prodList, i) != NULL){
+        if (strcmp(ip, getProducer(prodList, i)->paddr.ipAddr) == 0){
+            return getProducer(prodList, i);
+        }
+        i++;
+    }
+    return NULL;
+}
+
 
 int add_new_consumer(struct consumer_list * consList, address cons_addr){
     if (search_consumers_ip(cons_addr.ipAddr, consList) == NULL){
         int lastPos = consList->size;
         struct consumer * temp = malloc(sizeof(struct consumer));
-        memcpy(&temp->caddr, &cons_addr, sizeof(address));
+        temp->caddr.ipAddr = strdup(cons_addr.ipAddr);
+        temp->caddr.portNum = cons_addr.portNum;
         appendConsumer(consList, temp);
         return lastPos;
     }
@@ -46,7 +59,7 @@ int add_new_consumer(struct consumer_list * consList, address cons_addr){
 }
 
 int add_new_producer(unsigned char newID[3], struct producer_list * prodList, address prod_addr){
-    if (search_producers_id(newID, prodList) == -1){
+    if (search_producers_id(newID, prodList) == NULL){
         int lastPos = prodList->size;
         struct producer * temp = malloc(sizeof(struct producer));
         memcpy(&temp->paddr, &prod_addr, sizeof(address));
@@ -90,10 +103,11 @@ int recv_cons_request_connect(unsigned char * buf, struct consumer_list * consLi
 
 
 struct stream *  recv_request_create_stream(unsigned char * buf, struct producer_list * prodList){
-    struct producer * currentProd = getProducer(prodList, search_producers_id(&buf[1], prodList));
+    struct producer * currentProd = search_producers_id(&buf[1], prodList);
     if (currentProd == NULL){return NULL;}
     struct stream * newStream = malloc(sizeof(struct stream));
     memcpy(newStream->streamID, &buf[1], 3);
+    int header = 4;
     newStream->streamID[3] = 0;
     memcpy(newStream->name, currentProd->name, 6);
     newStream->name[6] = '0';
@@ -104,6 +118,11 @@ struct stream *  recv_request_create_stream(unsigned char * buf, struct producer
     newStream->subscribers = malloc(sizeof(struct consumer_list));
     newStream->subscribers->head = NULL;
     newStream->subscribers->size = 0;
+    if (newStream->type & VIDEO_BIT){
+        memcpy(&newStream->vWidth, &buf[header], 2);
+        memcpy(&newStream->vHeight, &buf[header+2], 2);
+        header += 4;
+    }
     return newStream;
 }
 int send_list_stream(unsigned char * buf, struct producer_list * prodList){
@@ -129,8 +148,7 @@ int send_list_stream(unsigned char * buf, struct producer_list * prodList){
 }
 
 int recv_req_stream_subscribe(unsigned char * buf, struct consumer * requester, struct producer_list * prodList){
-    int stream_exists = 0;
-    int length = 0;
+    char types = buf[0] & (~TYPE_MASK);
     struct producer * current_producer;
     unsigned char packet_id[4];
     memcpy(packet_id, &buf[1], 4);
@@ -139,10 +157,22 @@ int recv_req_stream_subscribe(unsigned char * buf, struct consumer * requester, 
         if (current_producer->myStream != NULL && *(uint32_t*)&packet_id == *(uint32_t*)&current_producer->myStream->streamID){
             appendConsumer(current_producer->myStream->subscribers, requester);
             printf("Stream %s now has subscriber %s:%hu\n", current_producer->myStream->name, requester->caddr.ipAddr,requester->caddr.portNum);
+            printf("Content types: ");
+            if (types & AUDIO_BIT){printf("a");}
+            if (types & VIDEO_BIT){printf("v");}
+            if (types & TEXT_BIT){printf("t");}
+            printf("\n");
             printf("Sending Confirmation\n");
             buf[0] = CONTROL_SUBSCRIBE;
+            buf[0] = buf[0] | types;
             memcpy(&buf[1], current_producer->myStream->streamID, 4);
-            return 5;
+            int header = 5;
+            if (current_producer->myStream->type & VIDEO_BIT){
+                memcpy(&buf[header], &current_producer->myStream->vWidth, 2);
+                memcpy(&buf[header+2], &current_producer->myStream->vHeight, 2);
+                header +=4;
+            }
+            return header;
         }
 
     }

@@ -7,7 +7,7 @@
 
 typedef struct {
     char * ipAddr;
-    short portNum;
+    unsigned short portNum;
 } address;
 
 struct packet_header{
@@ -20,6 +20,8 @@ struct stream{
     unsigned char type;
     struct producer * creator;
     struct consumer_list * subscribers;
+    short vWidth;
+    short vHeight;
 };
 
 struct consumer{

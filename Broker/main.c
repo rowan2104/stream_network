@@ -14,7 +14,7 @@
 
 
 #define PORT 50000  // The port on which the server will listen
-#define MAX_BUFFER_SIZE 65536  // Maximum buffer size for incoming messages
+#define MAX_BUFFER_SIZE 8294400  // Maximum buffer size for incoming messages
 
 
 
@@ -24,8 +24,10 @@ address source_addr;
 struct  producer_list * connected_producers;
 struct  consumer_list * connected_consumers;
 
+struct sockaddr_in theDestSocket;
 
 int serverSocket;
+
 
 
 int create_local_socket(){
@@ -72,6 +74,7 @@ struct sockaddr_in create_destination_socket(char * destIP, int destPort){
     return destAddr;
 }
 
+
 void send_UDP_datagram(int clientSocket, unsigned char * buffer, int buf_size, struct sockaddr_in destAddr){
     socklen_t destAddrLen = sizeof(destAddr);
     int rc = sendto(clientSocket, buffer, buf_size, 0, (struct sockaddr *)&destAddr, destAddrLen);
@@ -81,7 +84,7 @@ void send_UDP_datagram(int clientSocket, unsigned char * buffer, int buf_size, s
     }
 }
 
-void handle_packet(unsigned char * buffer){
+void handle_packet(unsigned char * buffer, int packetLength){
     printf("Control byte from %X:\n", buffer[0]);
     int length = -1;
     if (buffer[0] == CONTROL_PROD_REQUEST_CONNECT){
@@ -139,7 +142,18 @@ void handle_packet(unsigned char * buffer){
         dest_addr = source_addr;
     } else if ((buffer[0] & TYPE_MASK) == CONTROL_REQ_SUBSCRIBE) {
         printf("Recieve subscribe request from, client at %s:%hu\n", source_addr.ipAddr, source_addr.portNum);
-        length = recv_req_stream_subscribe(buffer, search_consumers_ip(source_addr.ipAddr, connected_consumers), connected_producers);
+        length = recv_req_stream_subscribe(buffer, search_consumers_ip(source_addr.ipAddr, connected_consumers),
+                                           connected_producers);
+
+    } else if (buffer[0] == DATA_VIDEO_FRAME || buffer[0] == DATA_TEXT_FRAME) {
+        struct stream * currentStream = search_producers_id(&buffer[1], connected_producers)->myStream;
+        for (int i = 0; i < currentStream->subscribers->size; ++i) {
+            struct consumer * cConsumer = getConsumer(currentStream->subscribers, i);
+            printf("Fowarding with length %d to %s:%hu\n", packetLength, cConsumer->caddr.ipAddr, cConsumer->caddr.portNum);
+            send_UDP_datagram(serverSocket, buffer, packetLength,
+                              create_destination_socket(cConsumer->caddr.ipAddr, cConsumer->caddr.portNum));
+        }
+        length = -1;
 
     } else if (ERROR){
         printf("RECEIVED ERROR PACKET!\n");
@@ -151,12 +165,13 @@ void handle_packet(unsigned char * buffer){
                           create_destination_socket(dest_addr.ipAddr, dest_addr.portNum));
         length = -1;
     }
+    return;
 }
 
 
 int main() {
     printf("Broker starting!\n");
-
+    theDestSocket = create_destination_socket("0.0.0.0", 0);
     serverSocket = create_listening_socket();
     connected_producers = malloc(sizeof(struct producer_list));
     connected_producers->head = NULL;
@@ -176,17 +191,27 @@ int main() {
 
 
     while (1) {
+
         int recv_len = recvfrom(serverSocket, buffer, MAX_BUFFER_SIZE, 0, (struct sockaddr *)&clientAddr, &clientAddrLen);
         if (recv_len < 0) {
             perror("Error receiving data");
             exit(1);
         }
+        if (buffer[0] == ERROR){
+            break;
+        }
+        // Free the previous allocation, if any
+        if (source_addr.ipAddr) {
+            free(source_addr.ipAddr);
+        }
         source_addr.ipAddr = strdup(inet_ntoa(clientAddr.sin_addr));
         source_addr.portNum = ntohs(clientAddr.sin_port);
-        printf("Received packet from %s:%d\n", inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port));
-        handle_packet(buffer);
-
-/*        if (buffer[0] == 0b01000000){
+        if (buffer[0] == CONTROL_PROD_REQUEST_CONNECT || buffer[0] == CONTROL_PROD_REQUEST_CONNECT || search_consumers_ip(source_addr.ipAddr, connected_consumers) != NULL || search_producer_ip(source_addr.ipAddr, connected_producers)){
+            printf("Received packet from %s:%hu\n", source_addr.ipAddr, source_addr.portNum);
+            handle_packet(buffer, recv_len);
+        }
+/*
+        if (buffer[0] == 0b01000000){
             printf("Received text: %s\n", &buffer[1]);
             for (int i = 0; i < client_count; ++i) {
                 printf("forwarding text message to client: %s : %d\n",

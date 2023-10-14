@@ -9,9 +9,23 @@
 #include "txt_utils.c"
 #include "protocol_constants.h"
 #include "consumer_protocol.c"
+#include <SDL2/SDL.h>
 
+#define MAX_BUFFER_SIZE 8294400  // Maximum buffer size for incoming messages
 
-#define MAX_BUFFER_SIZE 65536  // Maximum buffer size for incoming messages
+unsigned char * frameBuffer;
+int frameHead;
+
+int frame_to_update;
+
+SDL_Window* window;
+SDL_Renderer* renderer;
+SDL_Texture* texture;
+SDL_Event event;
+
+int display_Window;
+
+int frameName = 0;
 
 char * BROKER_IP_ADDRESS = "172.22.0.2";
 const int DESTINATION_PORT = 50000;
@@ -19,6 +33,9 @@ const int DESTINATION_PORT = 50000;
 char connected;
 
 unsigned char * subscribed;
+
+unsigned short vWidth;
+unsigned short vHeight;
 
 struct stream_string{
     unsigned char id[4];
@@ -87,8 +104,57 @@ void send_UDP_datagram(int clientSocket, unsigned char * buffer, int buf_size, s
     }
 }
 
+int create_SDL_window(short width, short height){
+    const int PIXEL_FORMAT = SDL_PIXELFORMAT_RGB24;
+    // Initialize SDL
+    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+        SDL_Log("SDL initialization failed: %s", SDL_GetError());
+        return 1;
+    }
 
-void handle_packet(unsigned char * buffer){
+    // Create a window
+    window = SDL_CreateWindow("Real-time Video Streaming", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, width, height, 0);
+    if (!window) {
+        SDL_Log("Window creation failed: %s", SDL_GetError());
+        return 2;
+    }
+
+    // Create a renderer for the window
+    renderer = SDL_CreateRenderer(window, -1, 0);
+    if (!renderer) {
+        SDL_Log("Renderer creation failed: %s", SDL_GetError());
+        return 3;
+    }
+
+    // Create a texture to write pixel data to
+    texture = SDL_CreateTexture(renderer, PIXEL_FORMAT, SDL_TEXTUREACCESS_STREAMING, width, height);
+
+    if (!texture) {
+        SDL_Log("Texture creation failed: %s", SDL_GetError());
+        return 4;
+    }
+}
+
+void update_window(){
+    if (SDL_PollEvent(&event) && event.type == SDL_QUIT) {
+        // Cleanup and exit
+        SDL_DestroyTexture(texture);
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        display_Window = 0;
+        return;
+    }
+    SDL_UpdateTexture(texture, NULL, frameBuffer, vWidth * sizeof(Uint32));
+
+    // Clear the renderer and copy the texture to the window
+    SDL_RenderClear(renderer);
+    SDL_RenderCopy(renderer, texture, NULL, NULL);
+    SDL_RenderPresent(renderer);
+}
+
+
+void handle_packet(unsigned char * buffer, unsigned int packetLength){
     if (buffer[0] == ERROR){
         printf("ERROR PACKET RECEIVED, ERROR CODE %d\n", (int) buffer[1]);
     } else if (buffer[0] == CONTROL_CONS_CONNECT) {
@@ -112,9 +178,65 @@ void handle_packet(unsigned char * buffer){
             }
             printf("\n");
         }
-    } else if (buffer[0] == CONTROL_SUBSCRIBE){
+    } else if ((buffer[0] & TYPE_MASK) == CONTROL_SUBSCRIBE){
         memcpy(subscribed, &buffer[1], 4);
-        printf("Recieved subscrition confirmed to %02x%02x%02x%02x\n", subscribed[0],subscribed[1],subscribed[2],subscribed[3]);
+        printf("Received subscription confirmed to %02x%02x%02x%02x\n", subscribed[0],subscribed[1],subscribed[2],subscribed[3]);
+        printf("Content types: ");
+        char types = buffer[0] & (~TYPE_MASK);
+        int header = 5;
+        if (types & AUDIO_BIT){printf("a");}
+        if (types & VIDEO_BIT){
+            memcpy(&vWidth, &buffer[header], 2);
+            memcpy(&vHeight, &buffer[header+2], 2);
+            header+=4;
+            printf("video: Width: %hu| Height: %hu\n", vWidth, vHeight);
+            if (display_Window == 0) {
+                create_SDL_window(vWidth, vHeight);
+                display_Window = 1;
+                frame_to_update = vHeight;
+            }
+
+            if (display_Window) {
+                update_window();
+            }
+
+
+        }
+        if (types & TEXT_BIT){
+            printf("t");
+        }
+        printf("\n");
+    } else if (buffer[0] == DATA_VIDEO_FRAME){
+        unsigned int part;
+
+        memcpy(&part, &buffer[4], 4);
+        printf("part of frame: %d | %02x%02x%02x%02x\n", part, buffer[8], buffer[9], buffer[10],buffer[11]);
+        printf("packetLength: %d\n", packetLength);
+        printf("Writing to %d\n", frameHead);
+        memcpy(&frameBuffer[frameHead], &buffer[8], packetLength-8);
+        frameHead+=packetLength-8;
+        printf("Copied memory succefully\n");
+        frame_to_update -= 1;
+        update_window();
+        if (part == 0) {
+            printf("part 0, doing stuff!\n");
+            //snprintf(ffmpegCommand, sizeof(ffmpegCommand), "ffmpeg -y -i %s -vf \"select=gte(n\\,%d)\" -vframes 1 %s> /dev/null 2>&1", vPath, vFrame, "frame.bmp");
+            //int result = system(ffmpegCommand
+            char imageName[1024];
+            snprintf(imageName, sizeof(imageName), "frame%d.bmp", frameName);
+            createBMP(imageName, frameBuffer, vWidth, vHeight);
+            for (int i = 0; i < vWidth*vHeight; ++i) {
+                char temp = frameBuffer[i*3];
+                frameBuffer[i*3] = frameBuffer[(i*3)+2];
+                frameBuffer[(i*3)+2] = temp;
+            }
+            printf("Saved as file!\n");
+            update_window();
+            frameName+= 1;
+            frameHead = 0;
+        }
+    } else if (buffer[0] == DATA_TEXT_FRAME){
+        printf("%s\n", &buffer[4]);
     }
 }
 
@@ -154,6 +276,9 @@ int main() {
     subscribed = malloc(sizeof(char)*5);
     subscribed[4] = 0 ;
 
+    frameBuffer = malloc(MAX_BUFFER_SIZE);
+    frameHead = 0;
+
 
     int localSocket = create_listening_socket();
 
@@ -171,18 +296,28 @@ int main() {
     char userInput[1024];
 
     fd_set readfds;
-
+    display_Window = 0;
     while (1) {
         FD_ZERO(&readfds);
-        FD_SET(STDIN_FILENO, &readfds);
-        FD_SET(localSocket, &readfds);
+        FD_SET(STDIN_FILENO, &readfds); // Add STDIN to the set
+        FD_SET(localSocket, &readfds); // Add the socket to the set
+
         int max_fd = (STDIN_FILENO > localSocket) ? STDIN_FILENO : localSocket;
 
+        struct timeval timeout;
+        timeout.tv_sec = 0; // Set the timeout to 5 seconds
+        timeout.tv_usec = 10;
 
-        if (select(max_fd + 1, &readfds, NULL, NULL, NULL) == -1) {
+        int ready_fds = select(max_fd + 1, &readfds, NULL, NULL, &timeout);
+
+        if (ready_fds == -1) {
             perror("select");
             exit(EXIT_FAILURE);
+        } else if (ready_fds == 0) {
+            continue;
         }
+
+
 
         if (FD_ISSET(STDIN_FILENO, &readfds)) {
             fgets(userInput, sizeof(userInput), stdin);
@@ -208,10 +343,11 @@ int main() {
                     }
 
                 } else if (strcmp(input_array[0], "subscribe") == 0) {
-                    if (input_count < 2){printf("Error not enough arguments!\n");} else {
+                    if (input_count < 3){printf("Error not enough arguments!\n");} else {
                         printf("Sending subscribe request for %s broker\n", input_array[1]);
-                        if (input_count < 3){length = send_req_subscribe(message, input_array[1], "");}
-                        else {length = send_req_subscribe(message, input_array[1], input_array[2]);}
+                        printf("content types: only %s/%s/%s\n", check_for(input_array[1], 'a', "audio"),
+                               check_for(input_array[1], 'v', "video"), check_for(input_array[1], 't', "text"));
+                        length = send_req_subscribe(message, input_array[1], input_array[2]);
                     }
                 } else {
                     printf("Invalid Command!\n");
@@ -236,7 +372,7 @@ int main() {
                     exit(1);
                 }
                 printf("Received packet from %s:%d\n", inet_ntoa(sourceAddr.sin_addr), ntohs(sourceAddr.sin_port));
-                handle_packet(buffer);
+                handle_packet(buffer, recv_len);
                 memset(buffer, 0, MAX_BUFFER_SIZE);
             }
         }

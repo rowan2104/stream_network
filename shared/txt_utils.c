@@ -1,31 +1,56 @@
 //
-// Created by rowan on 02/10/2023.
+// Created by rowan on 14/10/2023.
 //
+
 #include <stdio.h>
 #include <stdlib.h>
 
-char *readFileIntoString(const char *filename) {
+int readLineFromFile(const char *filename, int lineNumber, char *buffer, int bufferSize) {
     FILE *file = fopen(filename, "r");
     if (file == NULL) {
         perror("Error opening file");
-        return NULL;
+        return -1; // Error opening file
     }
-    fseek(file, 0, SEEK_END);
-    uint64_t file_size = ftell(file);
-    fseek(file, 0, SEEK_SET);
-    char *file_contents = malloc(file_size + 1);
-    fread(file_contents, 1, file_size, file);
-    file_contents[file_size] = '\0';
+
+    int currentLine = 0;
+    while (fgets(buffer, bufferSize, file) != NULL) {
+        if (currentLine == lineNumber) {
+            // Remove the trailing newline character (if it exists)
+            int len = strlen(buffer);
+            if (len > 0 && buffer[len - 1] == '\n') {
+                buffer[len - 1] = '\0'; // Null-terminate the string
+            }
+            fclose(file);
+            return 0; // Successfully read the specified line
+        }
+        currentLine++;
+
+    }
+
     fclose(file);
-    return file_contents;
+    return 1; // Specified line not found
 }
 
-void writeStringToFile(const char *filename, const char *text) {
-    FILE *file = fopen(filename, "a");
+// Function to write/append a string to a text file
+int writeToFile(const char *filename, const char *text, int append) {
+    FILE *file;
+
+    if (append)
+        file = fopen(filename, "a"); // Append mode
+    else
+        file = fopen(filename, "w"); // Write mode
+
     if (file == NULL) {
         perror("Error opening file");
-        return;
+        return -1; // Error opening file
     }
-    fprintf(file, "%s\n", text);
+
+    if (fprintf(file, "%s", text) < 0) {
+        perror("Error writing to file");
+        fclose(file);
+        return -2; // Error writing to file
+    }
+
     fclose(file);
+    return 0; // Successfully wrote to file
 }

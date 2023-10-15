@@ -24,5 +24,5 @@ docker network connect --ip=172.22.0.2 streaming_network %container_name%
 
 echo Container %container_name% created.
 
-start /min cmd /k docker exec -i %container_name% bash -c "bash wsopen"
+REM start /min cmd /k docker exec -i %container_name% bash -c "bash wsopen"
 start cmd /k docker start -i %container_name%

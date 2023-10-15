@@ -17,6 +17,7 @@
 #include <libavformat/avformat.h>
 #include <libavutil/imgutils.h>
 #include "mp4_utils.c"
+#include "jpg_utils.c"
 
 
 
@@ -199,6 +200,8 @@ void handle_packet(unsigned char * buffer){
 }
 
 
+
+
 int main() {
     printf("Server Container now running!\n");
 
@@ -207,7 +210,7 @@ int main() {
     tRate = 0;
 
     aFrame = 0;
-    vFrame = 180;
+    vFrame = 600;
     tFrame = 0;
 
     vWidth = 0;
@@ -259,8 +262,9 @@ int main() {
                 if (elapsedTime > vRate && (streamType & VIDEO_BIT)){
                     gettimeofday(&startV, NULL);
                     //printf("Sending frame %d\n", vFrame);
-                    uint8_t * buffery = malloc(MAX_BUFFER_SIZE);
+                    uint8_t * buffery;
                     extractFrame(vPath, vFrame, &buffery, &fps, &vWidth, &vHeight);
+                    //printf("HERE2\n");
                     //snprintf(ffmpegCommand, sizeof(ffmpegCommand), "ffmpeg -y -i %s -vf \"select=gte(n\\,%d)\" -vframes 1 %s> /dev/null 2>&1", vPath, vFrame, "frame.bmp");
                     //int result = system(ffmpegCommand);
                     //BMPImage * theImage = read_BMP_image("frame.bmp");
@@ -270,7 +274,10 @@ int main() {
                     char imageName[1024];
                     //snprintf(imageName, sizeof(imageName), "frame%d.bmp", vFrame);
                     //createBMP(imageName, buffery, vWidth, vHeight);
-                    memcpy(&message[8],buffery,vWidth*vHeight*3);
+                    int Jsize = 0;
+                    convert_to_jpeg(buffery, vWidth, vHeight, &buffery, &Jsize);
+                    printf("Jsize: %d\n", Jsize);
+                    memcpy(&message[8],buffery,Jsize);
                     free(buffery);
                     vFrame++;
                     //printf("message[8-11] | ");
@@ -283,12 +290,13 @@ int main() {
                     int packetSize = (65000)+8;
                     int vDataSize = packetSize-8;
                     message[0] = DATA_VIDEO_FRAME;
-                    unsigned int totalSize = vWidth * vHeight * 3;
+                    unsigned int totalSize = Jsize;
                     //printf("Total size: %d\n", totalSize);
                     int parts = (totalSize/vDataSize)+1;
                     memcpy(&message[1], myID, 3);
                     unsigned int part = 0;
                     for (int i = 0; i < parts; ++i) {
+                        printf("i! %d\n", i);
                         part = (parts-1)-i;
                         memcpy(&message[4], &part, 4);
                         int length = 0;
@@ -349,8 +357,8 @@ int main() {
                         streamType = message[0] & (~TYPE_MASK);
                         if (streamType & VIDEO_BIT){
                             getDetails(vPath, &fps, &vWidth, &vHeight);
-                            fps = 30;
-                            vRate = 1.0/(double)fps;
+                            vRate = 1.0/(double)15.0;
+                            vFrame = 0;
                             printf("Video width: %d\n", vWidth);
                             printf("Video height: %d\n", vHeight);
                             printf("Video fps: %d\n", fps);

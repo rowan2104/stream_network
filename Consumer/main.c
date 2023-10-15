@@ -10,10 +10,12 @@
 #include "protocol_constants.h"
 #include "consumer_protocol.c"
 #include <SDL2/SDL.h>
+#include "jpg_utils.c"
 
 #define MAX_BUFFER_SIZE 8294400  // Maximum buffer size for incoming messages
 #define MAX_FRAME_SIZE 65000
 unsigned char * frameBuffer;
+unsigned char * jpegBuffer;
 int frameHead;
 
 int frame_to_update;
@@ -24,7 +26,7 @@ SDL_Texture* texture;
 SDL_Event event;
 
 int display_Window;
-
+int imageSize;
 int frameName = 0;
 
 char * BROKER_IP_ADDRESS = "172.22.0.2";
@@ -210,34 +212,40 @@ void handle_packet(unsigned char * buffer, unsigned int packetLength){
         unsigned int part;
 
         memcpy(&part, &buffer[4], 4);
-        //printf("part of frame: %d | %02x%02x%02x%02x\n", part, buffer[8], buffer[9], buffer[10],buffer[11]);
-        //printf("packetLength: %d\n", packetLength);
+        printf("part of frame: %d | %02x%02x%02x%02x\n", part, buffer[8], buffer[9], buffer[10],buffer[11]);
+        printf("packetLength: %d\n", packetLength);
 
-
-        int packetSize = (MAX_FRAME_SIZE)+8;
-        int vDataSize = packetSize-8;
-        unsigned int totalSize = vWidth * vHeight * 3;
-        int parts = (totalSize/vDataSize)+1;
-        //printf("Writing to %d\n", ((parts-1)-part)*MAX_FRAME_SIZE);
-        memcpy(&frameBuffer[((parts-1)-part)*MAX_FRAME_SIZE], &buffer[8], packetLength-8);
+        printf("Writing to %d\n", 0);
+        memcpy(&jpegBuffer[0], &buffer[8], packetLength-8);
+        imageSize += (packetLength-8);
         //printf("Copied memory succefully\n");
         //update_window();
         if (part == 0) {
-            //printf("part 0, doing stuff!\n");
+            printf("part 0, doing stuff!\n");
             //snprintf(ffmpegCommand, sizeof(ffmpegCommand), "ffmpeg -y -i %s -vf \"select=gte(n\\,%d)\" -vframes 1 %s> /dev/null 2>&1", vPath, vFrame, "frame.bmp");
             //int result = system(ffmpegCommand
+            decode_jpeg(jpegBuffer, frameBuffer, imageSize);
+            for (int i = 0; i < 100; ++i) {
+                printf("%02x", frameBuffer[i]);
+            }
+            printf("\n");
+            for (int i = 0; i < 100; ++i) {
+                printf("%02x", jpegBuffer[i]);
+            }
+            printf("\n");
             char imageName[1024];
             snprintf(imageName, sizeof(imageName), "frame%d.bmp", frameName);
-            //createBMP(imageName, frameBuffer, vWidth, vHeight);
-            for (int i = 0; i < vWidth*vHeight; ++i) {
+            createBMP(imageName, frameBuffer, vWidth, vHeight);
+            /*for (int i = 0; i < vWidth*vHeight; ++i) {
                 char temp = frameBuffer[i*3];
                 frameBuffer[i*3] = frameBuffer[(i*3)+2];
                 frameBuffer[(i*3)+2] = temp;
-            }
+            }*/
             //printf("Saved as file!\n");
             update_window();
             frameName+= 1;
             frameHead = 0;
+            imageSize = 0;
         }
     } else if (buffer[0] == DATA_TEXT_FRAME){
         printf("%s\n", &buffer[4]);
@@ -281,6 +289,7 @@ int main() {
     subscribed[4] = 0 ;
 
     frameBuffer = malloc(MAX_BUFFER_SIZE);
+    jpegBuffer = malloc(MAX_BUFFER_SIZE);
     frameHead = 0;
 
 

@@ -10,7 +10,7 @@
 #include "producer_handler.c"
 #include "consumer_handler.c"
 #include "broker_protocol.c"
-
+#include "jpg_utils.c"
 
 
 #define PORT 50000  // The port on which the server will listen

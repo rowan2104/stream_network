@@ -200,7 +200,10 @@ void handle_packet(unsigned char * buffer){
 }
 
 
-
+void measure_print_time(struct timeval a, struct timeval b, char * message){
+    double elapsedTime  = (double)(b.tv_sec - a.tv_sec) + (double)(b.tv_usec - a.tv_usec) / 1000000.0;
+    printf("%s : %lf\n", message, elapsedTime);
+}
 
 int main() {
     printf("Server Container now running!\n");
@@ -240,6 +243,7 @@ int main() {
     //createBMP("video.mp4-frame0.bmp", pixelData, frame_width, frame_height);
 
     struct timeval timeout;
+    struct timeval sT2, eT2;
     while (1) {
         FD_ZERO(&readfds);
         FD_SET(STDIN_FILENO, &readfds);
@@ -261,9 +265,15 @@ int main() {
                 double elapsedTime  = (double)(endV.tv_sec - startV.tv_sec) + (double)(endV.tv_usec - startV.tv_usec) / 1000000.0;
                 if (elapsedTime > vRate && (streamType & VIDEO_BIT)){
                     gettimeofday(&startV, NULL);
+                    gettimeofday(&eT2, NULL);
+                    measure_print_time(sT2, eT2, "between");
+                    struct timeval sT, eT;
                     //printf("Sending frame %d\n", vFrame);
+                    gettimeofday(&sT, NULL);
                     uint8_t * buffery;
                     extractFrame(vPath, vFrame, &buffery, &fps, &vWidth, &vHeight);
+                    gettimeofday(&eT, NULL);
+                    measure_print_time(sT, eT, "extract");
                     //printf("HERE2\n");
                     //snprintf(ffmpegCommand, sizeof(ffmpegCommand), "ffmpeg -y -i %s -vf \"select=gte(n\\,%d)\" -vframes 1 %s> /dev/null 2>&1", vPath, vFrame, "frame.bmp");
                     //int result = system(ffmpegCommand);
@@ -271,12 +281,15 @@ int main() {
                     //memcpy(&message[8], theImage->pixelData, vWidth*vHeight*3);
                     //free(theImage->pixelData);
                     //free(theImage);
-                    char imageName[1024];
+                    //char imageName[1024];
                     //snprintf(imageName, sizeof(imageName), "frame%d.bmp", vFrame);
                     //createBMP(imageName, buffery, vWidth, vHeight);
                     int Jsize = 0;
+                    gettimeofday(&sT, NULL);
                     convert_to_jpeg(buffery, vWidth, vHeight, &buffery, &Jsize);
-                    printf("Jsize: %d\n", Jsize);
+                    gettimeofday(&eT, NULL);
+                    measure_print_time(sT, eT, "JPEG");
+                    //printf("Jsize: %d\n", Jsize);
                     memcpy(&message[8],buffery,Jsize);
                     free(buffery);
                     vFrame++;
@@ -295,8 +308,9 @@ int main() {
                     int parts = (totalSize/vDataSize)+1;
                     memcpy(&message[1], myID, 3);
                     unsigned int part = 0;
+                    gettimeofday(&sT, NULL);
                     for (int i = 0; i < parts; ++i) {
-                        printf("i! %d\n", i);
+                        //printf("i! %d\n", i);
                         part = (parts-1)-i;
                         memcpy(&message[4], &part, 4);
                         int length = 0;
@@ -317,7 +331,10 @@ int main() {
                         //printf("Total size!: %d\n", totalSize);
                         send_UDP_datagram(localSocket, message, length, brokerAddr);
                     }
-                    memset(message, 0, MAX_BUFFER_SIZE);
+                    gettimeofday(&eT, NULL);
+                    measure_print_time(sT, eT, "packets");
+                    memset(message, 0, Jsize);
+                    gettimeofday(&sT2, NULL);
                 }
                 struct timeval currentTime;
                 gettimeofday(&currentTime, NULL);
@@ -364,7 +381,7 @@ int main() {
                             printf("Video fps: %d\n", fps);
                             printf("vRate: %lf\n",vRate );
 
-                            printf("vpath: %s",vPath);
+                            printf("vpath: %s\n",vPath);
                         }
                         printf("streamType: %02x\n", streamType);
                     }

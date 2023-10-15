@@ -212,10 +212,10 @@ void handle_packet(unsigned char * buffer, unsigned int packetLength){
         unsigned int part;
 
         memcpy(&part, &buffer[4], 4);
-        printf("part of frame: %d | %02x%02x%02x%02x\n", part, buffer[8], buffer[9], buffer[10],buffer[11]);
-        printf("packetLength: %d\n", packetLength);
+        //printf("part of frame: %d | %02x%02x%02x%02x\n", part, buffer[8], buffer[9], buffer[10],buffer[11]);
+        //printf("packetLength: %d\n", packetLength);
 
-        printf("Writing to %d\n", 0);
+        //printf("Writing to %d\n", 0);
         memcpy(&jpegBuffer[0], &buffer[8], packetLength-8);
         imageSize += (packetLength-8);
         //printf("Copied memory succefully\n");
@@ -225,13 +225,6 @@ void handle_packet(unsigned char * buffer, unsigned int packetLength){
             //snprintf(ffmpegCommand, sizeof(ffmpegCommand), "ffmpeg -y -i %s -vf \"select=gte(n\\,%d)\" -vframes 1 %s> /dev/null 2>&1", vPath, vFrame, "frame.bmp");
             //int result = system(ffmpegCommand
             decode_jpeg(jpegBuffer, frameBuffer, imageSize);
-            for (int i = 0; i < 100; ++i) {
-                printf("%02x", frameBuffer[i]);
-            }
-            printf("\n");
-            for (int i = 0; i < 100; ++i) {
-                printf("%02x", jpegBuffer[i]);
-            }
             printf("\n");
             char imageName[1024];
             snprintf(imageName, sizeof(imageName), "frame%d.bmp", frameName);

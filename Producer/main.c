@@ -207,7 +207,7 @@ int main() {
     tRate = 0;
 
     aFrame = 0;
-    vFrame = 0;
+    vFrame = 180;
     tFrame = 0;
 
     vWidth = 0;
@@ -258,7 +258,7 @@ int main() {
                 double elapsedTime  = (double)(endV.tv_sec - startV.tv_sec) + (double)(endV.tv_usec - startV.tv_usec) / 1000000.0;
                 if (elapsedTime > vRate && (streamType & VIDEO_BIT)){
                     gettimeofday(&startV, NULL);
-                    printf("Sending frame %d\n", vFrame);
+                    //printf("Sending frame %d\n", vFrame);
                     uint8_t * buffery = malloc(MAX_BUFFER_SIZE);
                     extractFrame(vPath, vFrame, &buffery, &fps, &vWidth, &vHeight);
                     //snprintf(ffmpegCommand, sizeof(ffmpegCommand), "ffmpeg -y -i %s -vf \"select=gte(n\\,%d)\" -vframes 1 %s> /dev/null 2>&1", vPath, vFrame, "frame.bmp");
@@ -268,34 +268,46 @@ int main() {
                     //free(theImage->pixelData);
                     //free(theImage);
                     char imageName[1024];
-                    snprintf(imageName, sizeof(imageName), "frame%d.bmp", vFrame);
-                    createBMP(imageName, buffery, vWidth, vHeight);
+                    //snprintf(imageName, sizeof(imageName), "frame%d.bmp", vFrame);
+                    //createBMP(imageName, buffery, vWidth, vHeight);
                     memcpy(&message[8],buffery,vWidth*vHeight*3);
+                    free(buffery);
                     vFrame++;
-                    if (vFrame > 30) {vFrame == 0;}
+                    //printf("message[8-11] | ");
+                    //for (int i = 0; i < 4; ++i) {
+                    //    printf("%02x",message[8+i]);
+                    //}
+                    //printf("\n");
                     short vidWidth = vWidth;
                     short vidHeight = vHeight;
                     int packetSize = (65000)+8;
                     int vDataSize = packetSize-8;
                     message[0] = DATA_VIDEO_FRAME;
                     unsigned int totalSize = vWidth * vHeight * 3;
+                    //printf("Total size: %d\n", totalSize);
                     int parts = (totalSize/vDataSize)+1;
                     memcpy(&message[1], myID, 3);
                     unsigned int part = 0;
                     for (int i = 0; i < parts; ++i) {
-                        part = i;
+                        part = (parts-1)-i;
                         memcpy(&message[4], &part, 4);
                         int length = 0;
+                        //printf("i: %d\n", i);
+                        //printf("totalSize<vDataSize: %d<%d\n",totalSize, vDataSize);
                         if (totalSize<vDataSize) {
+                            //printf("using totalSize: %d\n",totalSize);
+                            //printf("Copying to 8 + (vDataSize * i): %d\n",8 + (vDataSize * i));
                             memcpy(&message[8], &message[8 + (vDataSize * i)], totalSize);
                             length = 8 + totalSize;
                         } else {
+                            //printf("using vDataSize: %d\n",vDataSize);
+                            //printf("Copying to 8 + (vDataSize * i): %d\n",(8 + (vDataSize * i)));
                             memcpy(&message[8], &message[8 + (vDataSize * i)], vDataSize);
                             length = 8 + vDataSize;
                         }
-                        totalSize -= length;
+                        totalSize -= (length-8);
+                        //printf("Total size!: %d\n", totalSize);
                         send_UDP_datagram(localSocket, message, length, brokerAddr);
-                        usleep(42000); // Convert milliseconds to microseconds
                     }
                     memset(message, 0, MAX_BUFFER_SIZE);
                 }
@@ -337,8 +349,8 @@ int main() {
                         streamType = message[0] & (~TYPE_MASK);
                         if (streamType & VIDEO_BIT){
                             getDetails(vPath, &fps, &vWidth, &vHeight);
-                            fps = fps;
-                            vRate = (double)(((double)fps/5.0)-2);
+                            fps = 30;
+                            vRate = 1.0/(double)fps;
                             printf("Video width: %d\n", vWidth);
                             printf("Video height: %d\n", vHeight);
                             printf("Video fps: %d\n", fps);

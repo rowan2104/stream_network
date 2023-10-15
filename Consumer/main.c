@@ -12,7 +12,7 @@
 #include <SDL2/SDL.h>
 
 #define MAX_BUFFER_SIZE 8294400  // Maximum buffer size for incoming messages
-
+#define MAX_FRAME_SIZE 65000
 unsigned char * frameBuffer;
 int frameHead;
 
@@ -145,7 +145,7 @@ void update_window(){
         display_Window = 0;
         return;
     }
-    SDL_UpdateTexture(texture, NULL, frameBuffer, vWidth * sizeof(Uint32));
+    SDL_UpdateTexture(texture, NULL, frameBuffer, vWidth * 3);
 
     // Clear the renderer and copy the texture to the window
     SDL_RenderClear(renderer);
@@ -210,27 +210,31 @@ void handle_packet(unsigned char * buffer, unsigned int packetLength){
         unsigned int part;
 
         memcpy(&part, &buffer[4], 4);
-        printf("part of frame: %d | %02x%02x%02x%02x\n", part, buffer[8], buffer[9], buffer[10],buffer[11]);
-        printf("packetLength: %d\n", packetLength);
-        printf("Writing to %d\n", frameHead);
-        memcpy(&frameBuffer[frameHead], &buffer[8], packetLength-8);
-        frameHead+=packetLength-8;
-        printf("Copied memory succefully\n");
-        frame_to_update -= 1;
-        update_window();
+        //printf("part of frame: %d | %02x%02x%02x%02x\n", part, buffer[8], buffer[9], buffer[10],buffer[11]);
+        //printf("packetLength: %d\n", packetLength);
+
+
+        int packetSize = (MAX_FRAME_SIZE)+8;
+        int vDataSize = packetSize-8;
+        unsigned int totalSize = vWidth * vHeight * 3;
+        int parts = (totalSize/vDataSize)+1;
+        //printf("Writing to %d\n", ((parts-1)-part)*MAX_FRAME_SIZE);
+        memcpy(&frameBuffer[((parts-1)-part)*MAX_FRAME_SIZE], &buffer[8], packetLength-8);
+        //printf("Copied memory succefully\n");
+        //update_window();
         if (part == 0) {
-            printf("part 0, doing stuff!\n");
+            //printf("part 0, doing stuff!\n");
             //snprintf(ffmpegCommand, sizeof(ffmpegCommand), "ffmpeg -y -i %s -vf \"select=gte(n\\,%d)\" -vframes 1 %s> /dev/null 2>&1", vPath, vFrame, "frame.bmp");
             //int result = system(ffmpegCommand
             char imageName[1024];
             snprintf(imageName, sizeof(imageName), "frame%d.bmp", frameName);
-            createBMP(imageName, frameBuffer, vWidth, vHeight);
+            //createBMP(imageName, frameBuffer, vWidth, vHeight);
             for (int i = 0; i < vWidth*vHeight; ++i) {
                 char temp = frameBuffer[i*3];
                 frameBuffer[i*3] = frameBuffer[(i*3)+2];
                 frameBuffer[(i*3)+2] = temp;
             }
-            printf("Saved as file!\n");
+            //printf("Saved as file!\n");
             update_window();
             frameName+= 1;
             frameHead = 0;
@@ -371,7 +375,9 @@ int main() {
                     perror("Error receiving data");
                     exit(1);
                 }
-                printf("Received packet from %s:%d\n", inet_ntoa(sourceAddr.sin_addr), ntohs(sourceAddr.sin_port));
+                if (buffer[0] & 0b10000000) {
+                    printf("Received packet from %s:%d\n", inet_ntoa(sourceAddr.sin_addr), ntohs(sourceAddr.sin_port));
+                }
                 handle_packet(buffer, recv_len);
                 memset(buffer, 0, MAX_BUFFER_SIZE);
             }

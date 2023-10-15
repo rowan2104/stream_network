@@ -85,7 +85,9 @@ void send_UDP_datagram(int clientSocket, unsigned char * buffer, int buf_size, s
 }
 
 void handle_packet(unsigned char * buffer, int packetLength){
-    printf("Control byte from %X:\n", buffer[0]);
+    if (buffer[0] & 0b10000000) {
+        printf("Control byte from %X:\n", buffer[0]);
+    }
     int length = -1;
     if (buffer[0] == CONTROL_PROD_REQUEST_CONNECT){
         int result = recv_prod_request_connect(buffer, connected_producers, source_addr);
@@ -149,7 +151,7 @@ void handle_packet(unsigned char * buffer, int packetLength){
         struct stream * currentStream = search_producers_id(&buffer[1], connected_producers)->myStream;
         for (int i = 0; i < currentStream->subscribers->size; ++i) {
             struct consumer * cConsumer = getConsumer(currentStream->subscribers, i);
-            printf("Fowarding with length %d to %s:%hu\n", packetLength, cConsumer->caddr.ipAddr, cConsumer->caddr.portNum);
+            //printf("Fowarding with length %d to %s:%hu\n", packetLength, cConsumer->caddr.ipAddr, cConsumer->caddr.portNum);
             send_UDP_datagram(serverSocket, buffer, packetLength,
                               create_destination_socket(cConsumer->caddr.ipAddr, cConsumer->caddr.portNum));
         }
@@ -207,7 +209,9 @@ int main() {
         source_addr.ipAddr = strdup(inet_ntoa(clientAddr.sin_addr));
         source_addr.portNum = ntohs(clientAddr.sin_port);
         if (buffer[0] == CONTROL_PROD_REQUEST_CONNECT || buffer[0] == CONTROL_PROD_REQUEST_CONNECT || search_consumers_ip(source_addr.ipAddr, connected_consumers) != NULL || search_producer_ip(source_addr.ipAddr, connected_producers)){
-            printf("Received packet from %s:%hu\n", source_addr.ipAddr, source_addr.portNum);
+            if (buffer[0] & 0b10000000) {
+                printf("Received packet from %s:%hu\n", source_addr.ipAddr, source_addr.portNum);
+            }
             handle_packet(buffer, recv_len);
         }
 /*

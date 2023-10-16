@@ -1,117 +1,120 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include <ffms.h>
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
+#include <libswscale/swscale.h>
 
-int extractFrame(const char *inputFilename, int frameNum, uint8_t **frameData, int *fps, int *width, int *height) {
-    /* Initialize the library. */
-    FFMS_Init(0, 0);
+AVFormatContext* formatContext = NULL;
+AVCodecContext* codecContext = NULL;
+AVFrame* frame = NULL;
+int videoStreamIndex = -1;
+AVCodecParameters* codecpar = NULL; // Global codecpar
 
-    /* Index the source file. Note that this example does not index any audio tracks. */
-    char errmsg[1024];
-    FFMS_ErrorInfo errinfo;
-    errinfo.Buffer      = errmsg;
-    errinfo.BufferSize  = sizeof(errmsg);
-    errinfo.ErrorType   = FFMS_ERROR_SUCCESS;
-    errinfo.SubType     = FFMS_ERROR_SUCCESS;
-    const char *sourcefile = inputFilename;
+int frames_in_buffer = 0;
+struct SwsContext* swsContext; // Global swsContext
 
-    FFMS_Indexer *indexer = FFMS_CreateIndexer(sourcefile, &errinfo);
-    if (indexer == NULL) {
-        printf("Error1!\n");
+int open_input(const char* filename, unsigned char * decodedFrameBuf[], int width, int height) {
+    // Initialize FFmpeg
+    avformat_network_init();
+
+
+    // Open the input video file
+    if (avformat_open_input(&formatContext, filename, NULL, NULL) != 0) {
+        fprintf(stderr, "Error: Could not open the input file.\n");
+        return -1;
     }
 
-    FFMS_Index *index = FFMS_DoIndexing2(indexer, FFMS_IEH_ABORT, &errinfo);
-    if (index == NULL) {
-        printf("Error2!\n");
+    // Retrieve stream information
+    if (avformat_find_stream_info(formatContext, NULL) < 0) {
+        fprintf(stderr, "Error: Could not find stream information.\n");
+        return -1;
     }
 
-    /* Retrieve the track number of the first video track */
-    int trackno = FFMS_GetFirstTrackOfType(index, FFMS_TYPE_VIDEO, &errinfo);
-    if (trackno < 0) {
-        printf("Error3!\n");
+    // Find the video stream
+    for (int i = 0; i < formatContext->nb_streams; i++) {
+        if (formatContext->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
+            videoStreamIndex = i;
+            codecpar = formatContext->streams[i]->codecpar;
+            break;
+        }
     }
 
-    /* We now have enough information to create the video source object */
-    FFMS_VideoSource *videosource = FFMS_CreateVideoSource(sourcefile, trackno, index, 1, FFMS_SEEK_NORMAL, &errinfo);
-    if (videosource == NULL) {
-        printf("Error4!\n");
+    if (videoStreamIndex == -1) {
+        fprintf(stderr, "Error: Could not find a video stream in the input file.\n");
+        return -1;
     }
 
-    /* Since the index is copied into the video source object upon its creation,
-    we can and should now destroy the index object. */
-    FFMS_DestroyIndex(index);
-
-    /* Retrieve video properties so we know what we're getting.
-    As the lack of the errmsg parameter indicates, this function cannot fail. */
-    const FFMS_VideoProperties *videoprops = FFMS_GetVideoProperties(videosource);
-
-    /* Now you may want to do something with the info, like check how many frames the video has */
-    int num_frames = videoprops->NumFrames;
-
-    /* Get the first frame for examination so we know what we're getting. This is required
-    because resolution and colorspace is a per frame property and NOT global for the video. */
-    const FFMS_Frame *propframe = FFMS_GetFrame(videosource, 0, &errinfo);
-
-    /* Now you may want to do something with the info; particularly interesting values are:
-    propframe->EncodedWidth; (frame width in pixels)
-    propframe->EncodedHeight; (frame height in pixels)
-    propframe->EncodedPixelFormat; (actual frame colorspace)
-    */
-
-    /* If you want to change the output colorspace or resize the output frame size,
-    now is the time to do it. IMPORTANT: This step is also required to prevent
-    resolution and colorspace changes midstream. You can always tell a frame's
-    original properties by examining the Encoded* properties in FFMS_Frame. */
-    /* See libavutil/pixfmt.h for the list of pixel formats/colorspaces.
-    To get the name of a given pixel format, strip the leading PIX_FMT_
-    and convert to lowercase. For example, PIX_FMT_YUV420P becomes "yuv420p". */
-
-    /* A -1 terminated list of the acceptable output formats. */
-    int pixfmts[2];
-    pixfmts[0] = FFMS_GetPixFmt("bgr24");
-    pixfmts[1] = -1;
-
-    if (FFMS_SetOutputFormatV2(videosource, pixfmts, propframe->EncodedWidth, propframe->EncodedHeight,
-                               FFMS_RESIZER_BICUBIC, &errinfo)) {
-        /* handle error */
+    // Allocate a codec context and open the codec
+    codecContext = avcodec_alloc_context3(NULL);
+    avcodec_parameters_to_context(codecContext, formatContext->streams[videoStreamIndex]->codecpar);
+    AVCodec* codec = avcodec_find_decoder(codecContext->codec_id);
+    if (!codec) {
+        fprintf(stderr, "Error: Unsupported codec.\n");
+        return -1;
     }
 
-    /* now we're ready to actually retrieve the video frames */
-    int framenumber = frameNum; /* valid until next call to FFMS_GetFrame* on the same video object */
-    const FFMS_Frame *curframe = FFMS_GetFrame(videosource, framenumber, &errinfo);
-    if (curframe == NULL) {
-        /* handle error */
+    if (avcodec_open2(codecContext, codec, NULL) < 0) {
+        fprintf(stderr, "Error: Could not open the codec.\n");
+        return -1;
     }
 
-    /* Allocate memory for the frame data buffer in BGR format */
-    int bufferSize = curframe->EncodedWidth * curframe->EncodedHeight * 3; // 3 bytes per pixel (BGR)
-    *frameData = (uint8_t*)malloc(bufferSize);
-    if (*frameData == NULL) {
-        /* handle memory allocation error */
+    // Allocate a frame
+    frame = av_frame_alloc();
+
+    for (int i = 0; i < 6; i++) {
+        decodedFrameBuf[i] = (unsigned char*)av_malloc(3 * codecContext->width * codecContext->height);
     }
 
-
-    /* Copy the pixel data to the frameData buffer */
-    int stride = curframe->EncodedWidth * 3; // 3 bytes per pixel (BGR)
-    for (int i = 0; i < curframe->EncodedHeight; i++) {
-        memcpy(*frameData + i * curframe->EncodedWidth * 3, curframe->Data[0] + i * curframe->Linesize[0], curframe->EncodedWidth * 3);
-    }
-
-
-    /* Set the width, height, and fps values */
-    *width = curframe->EncodedWidth;
-    *height = curframe->EncodedHeight;
-    *fps = videoprops->NumFrames;
-
-    /* now it's time to clean up */
-    FFMS_DestroyVideoSource(videosource);
-
-    /* uninitialize the library. */
-    FFMS_Deinit();
+    // Create swsContext
+    swsContext = sws_getContext(
+            codecContext->width, codecContext->height, codecpar->format,
+            codecContext->width, codecContext->height, AV_PIX_FMT_RGB24,
+            SWS_BILINEAR, NULL, NULL, NULL
+    );
 
     return 0;
 }
+
+
+
+int decode_frames(int batch_size, unsigned char* decodedFrameBuf[]) {
+    AVPacket packet;
+    int frames_decoded = 0;
+
+    while (av_read_frame(formatContext, &packet) >= 0) {
+        if (packet.stream_index == videoStreamIndex) {
+            // Decode video frame
+            if (avcodec_send_packet(codecContext, &packet) == 0) {
+                while (avcodec_receive_frame(codecContext, frame) == 0) {
+                    // Store the frame in the buffer
+                    if (frames_decoded < batch_size) {
+                        // Here, you can copy the frame data to the buffer as needed
+                        // The frame data is available in frame->data[0], frame->linesize[0]
+
+
+
+                        uint8_t *frameDataArray[1] = { decodedFrameBuf[frames_decoded] };
+                        int linesize[1] = { frame->width * 3 };
+
+                        sws_scale(swsContext, (const uint8_t *const *)frame->data, frame->linesize, 0, frame->height, frameDataArray, linesize);
+
+                        frames_decoded++;
+                    }
+
+                    if (frames_decoded >= batch_size) {
+                        av_packet_unref(&packet);
+                        return 0; // Finished decoding batch
+                    }
+                }
+            }
+        }
+        av_packet_unref(&packet);
+    }
+
+    return (frames_decoded > 0) ? 0 : -1;
+}
+
 
 
 

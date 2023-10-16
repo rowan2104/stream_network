@@ -50,6 +50,10 @@ int vHeight;
 char * vPath;
 int fps;
 
+const int vBatchSize = 6;
+unsigned char * decodedFrameBuf[6];
+int currentFrame = 0;
+int codec_opened = 0;
 
 
 unsigned char myID[3];
@@ -213,7 +217,7 @@ int main() {
     tRate = 0;
 
     aFrame = 0;
-    vFrame = 600;
+    vFrame = 0;
     tFrame = 0;
 
     vWidth = 0;
@@ -222,6 +226,7 @@ int main() {
     tPath = malloc(1024);
     fps = 0;
 
+    decodedFrameBuf[vBatchSize];
     textBuffer = malloc(2048);
     memset(textBuffer,0,2048);
     int localSocket = create_listening_socket();
@@ -266,32 +271,52 @@ int main() {
                 if (elapsedTime > vRate && (streamType & VIDEO_BIT)){
                     gettimeofday(&startV, NULL);
                     gettimeofday(&eT2, NULL);
-                    measure_print_time(sT2, eT2, "between");
+                    //measure_print_time(sT2, eT2, "between");
                     struct timeval sT, eT;
-                    //printf("Sending frame %d\n", vFrame);
                     gettimeofday(&sT, NULL);
-                    uint8_t * buffery;
-                    extractFrame(vPath, vFrame, &buffery, &fps, &vWidth, &vHeight);
+                    //printf("Sending frame %d\n", vFrame);
+                    if (codec_opened == 0){
+                        open_input(vPath, decodedFrameBuf, vWidth, vHeight);
+                        codec_opened = 1;
+                        currentFrame = vBatchSize;
+                    }
                     gettimeofday(&eT, NULL);
-                    measure_print_time(sT, eT, "extract");
+                    //measure_print_time(sT, eT, "open codec");
+
+
+                    if (currentFrame == vBatchSize){
+                        gettimeofday(&sT, NULL);
+                        currentFrame = 0;
+                        decode_frames(vBatchSize, decodedFrameBuf);
+                        gettimeofday(&eT, NULL);
+                        //measure_print_time(sT, eT, "read 6 frames");
+                    }
+
+                    //uint8_t * buffery;
+                    //extractFrame(vPath, vFrame, &buffery, &fps, &vWidth, &vHeight);
                     //printf("HERE2\n");
+                    //char ffmpegCommand[1024];
                     //snprintf(ffmpegCommand, sizeof(ffmpegCommand), "ffmpeg -y -i %s -vf \"select=gte(n\\,%d)\" -vframes 1 %s> /dev/null 2>&1", vPath, vFrame, "frame.bmp");
                     //int result = system(ffmpegCommand);
                     //BMPImage * theImage = read_BMP_image("frame.bmp");
                     //memcpy(&message[8], theImage->pixelData, vWidth*vHeight*3);
-                    //free(theImage->pixelData);
-                    //free(theImage);
                     //char imageName[1024];
                     //snprintf(imageName, sizeof(imageName), "frame%d.bmp", vFrame);
-                    //createBMP(imageName, buffery, vWidth, vHeight);
+                    //createBMP(imageName, decodedFrameBuf[currentFrame], vWidth, vHeight);
+                    //gettimeofday(&eT, NULL);
+                    //measure_print_time(sT, eT, "extract");
+
                     int Jsize = 0;
                     gettimeofday(&sT, NULL);
-                    convert_to_jpeg(buffery, vWidth, vHeight, &buffery, &Jsize);
+                    uint8_t * buffery;
+                    convert_to_jpeg(decodedFrameBuf[currentFrame], vWidth, vHeight, &message[8], &Jsize);
+                    //free(theImage->pixelData);
+                    //free(theImage);
                     gettimeofday(&eT, NULL);
-                    measure_print_time(sT, eT, "JPEG");
+                    //measure_print_time(sT, eT, "JPEG");
                     //printf("Jsize: %d\n", Jsize);
-                    memcpy(&message[8],buffery,Jsize);
-                    free(buffery);
+                    //memcpy(&message[8],theImage->pixelData,Jsize);
+                    //free(buffery);
                     vFrame++;
                     //printf("message[8-11] | ");
                     //for (int i = 0; i < 4; ++i) {
@@ -331,8 +356,9 @@ int main() {
                         //printf("Total size!: %d\n", totalSize);
                         send_UDP_datagram(localSocket, message, length, brokerAddr);
                     }
+                    currentFrame++;
                     gettimeofday(&eT, NULL);
-                    measure_print_time(sT, eT, "packets");
+                    //measure_print_time(sT, eT, "packets");
                     memset(message, 0, Jsize);
                     gettimeofday(&sT2, NULL);
                 }
@@ -374,7 +400,7 @@ int main() {
                         streamType = message[0] & (~TYPE_MASK);
                         if (streamType & VIDEO_BIT){
                             getDetails(vPath, &fps, &vWidth, &vHeight);
-                            vRate = 1.0/(double)15.0;
+                            vRate = 1.0/(double)fps;
                             vFrame = 0;
                             printf("Video width: %d\n", vWidth);
                             printf("Video height: %d\n", vHeight);

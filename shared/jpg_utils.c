@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <jpeglib.h>
 
-void convert_to_jpeg(char * inputImage, int width, int height, unsigned char ** outPutImage, int * size){
+void convert_to_jpeg(char * inputImage, int width, int height, unsigned char * outPutImage, int * size){
     struct jpeg_compress_struct cinfo;
     struct jpeg_error_mgr jerr;
     JSAMPROW row_pointer[1];
@@ -24,19 +24,18 @@ void convert_to_jpeg(char * inputImage, int width, int height, unsigned char ** 
     jpeg_set_quality(&cinfo, 20, TRUE);
 
     jpeg_start_compress(&cinfo, TRUE);
-
     while (cinfo.next_scanline < cinfo.image_height) {
-    row_pointer[0] = &inputImage[cinfo.next_scanline * cinfo.image_width * 3];
-    jpeg_write_scanlines(&cinfo, row_pointer, 1);
+        row_pointer[0] = &inputImage[cinfo.next_scanline * cinfo.image_width * 3];
+        jpeg_write_scanlines(&cinfo, row_pointer, 1);
     }
-
     jpeg_finish_compress(&cinfo);
     jpeg_destroy_compress(&cinfo);
 
     // Copy the JPEG data to the output buffer
     *size = jpeg_size;
-    char *buffer = (unsigned char*)malloc(jpeg_size);
-    memcpy(*outPutImage, jpeg_data, jpeg_size);
+    //char *buffer = (unsigned char*)malloc(jpeg_size);
+    memcpy(outPutImage, jpeg_data, jpeg_size);
+    //memcpy(outPutImage, &buffer, sizeof(uint8_t *));
 
     // Clean up the memory buffer
     free(jpeg_data);

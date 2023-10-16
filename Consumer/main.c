@@ -98,6 +98,7 @@ int create_listening_socket() {
 }
 
 void send_UDP_datagram(int clientSocket, unsigned char * buffer, int buf_size, struct sockaddr_in destAddr){
+    printf("LAMO\n");
     socklen_t destAddrLen = sizeof(destAddr);
     int rc = sendto(clientSocket, buffer, buf_size, 0, (struct sockaddr *)&destAddr, destAddrLen);
     if (rc < 0) {
@@ -221,14 +222,14 @@ void handle_packet(unsigned char * buffer, unsigned int packetLength){
         //printf("Copied memory succefully\n");
         //update_window();
         if (part == 0) {
-            printf("part 0, doing stuff!\n");
+            //printf("part 0, doing stuff!\n");
             //snprintf(ffmpegCommand, sizeof(ffmpegCommand), "ffmpeg -y -i %s -vf \"select=gte(n\\,%d)\" -vframes 1 %s> /dev/null 2>&1", vPath, vFrame, "frame.bmp");
             //int result = system(ffmpegCommand
             decode_jpeg(jpegBuffer, frameBuffer, imageSize);
-            printf("\n");
+            //printf("\n");
             char imageName[1024];
-            snprintf(imageName, sizeof(imageName), "frame%d.bmp", frameName);
-            createBMP(imageName, frameBuffer, vWidth, vHeight);
+            //snprintf(imageName, sizeof(imageName), "frame%d.bmp", frameName);
+            //createBMP(imageName, frameBuffer, vWidth, vHeight);
             /*for (int i = 0; i < vWidth*vHeight; ++i) {
                 char temp = frameBuffer[i*3];
                 frameBuffer[i*3] = frameBuffer[(i*3)+2];
@@ -351,8 +352,8 @@ int main() {
                 } else if (strcmp(input_array[0], "subscribe") == 0) {
                     if (input_count < 3){printf("Error not enough arguments!\n");} else {
                         printf("Sending subscribe request for %s broker\n", input_array[1]);
-                        printf("content types: only %s/%s/%s\n", check_for(input_array[1], 'a', "audio"),
-                               check_for(input_array[1], 'v', "video"), check_for(input_array[1], 't', "text"));
+                        printf("content types: only %s/%s/%s\n", check_for(input_array[2], 'a', "audio"),
+                               check_for(input_array[2], 'v', "video"), check_for(input_array[2], 't', "text"));
                         length = send_req_subscribe(message, input_array[1], input_array[2]);
                     }
                 } else {

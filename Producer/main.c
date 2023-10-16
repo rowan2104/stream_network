@@ -269,104 +269,47 @@ int main() {
                 gettimeofday(&endV, NULL);
                 double elapsedTime  = (double)(endV.tv_sec - startV.tv_sec) + (double)(endV.tv_usec - startV.tv_usec) / 1000000.0;
                 if (elapsedTime > vRate && (streamType & VIDEO_BIT)){
-                    print_mem("1");
                     gettimeofday(&startV, NULL);
-                    //gettimeofday(&eT2, NULL);
-                    //measure_print_time(sT2, eT2, "between");
-                    //struct timeval sT, eT;
-                    //gettimeofday(&sT, NULL);
-                    //printf("Sending frame %d\n", vFrame);
                     if (codec_opened == 0){
                         open_input(vPath, decodedFrameBuf, vWidth, vHeight);
                         codec_opened = 1;
                         currentFrame = vBatchSize;
                     }
-                    print_mem("2");
-                    //gettimeofday(&eT, NULL);
-                    //measure_print_time(sT, eT, "open codec");
 
-                    //printf("vFrame: %d\n", vFrame);
                     if (currentFrame == vBatchSize){
-                        //gettimeofday(&sT, NULL);
                         currentFrame = 0;
                         int rc = decode_frames(vBatchSize, decodedFrameBuf);
-                        if (rc == -1){vFrame = 0; decode_frames(vBatchSize, decodedFrameBuf);printf("Looping to start!\n");}
-                        //gettimeofday(&eT, NULL);
-                        //measure_print_time(sT, eT, "read 6 frames");
+                        if (rc == -1){vFrame = 0; decode_frames(vBatchSize, decodedFrameBuf);}
                     }
-                    print_mem("3");
-
-                    //uint8_t * buffery;
-                    //extractFrame(vPath, vFrame, &buffery, &fps, &vWidth, &vHeight);
-                    //printf("HERE2\n");
-                    //char ffmpegCommand[1024];
-                    //snprintf(ffmpegCommand, sizeof(ffmpegCommand), "ffmpeg -y -i %s -vf \"select=gte(n\\,%d)\" -vframes 1 %s> /dev/null 2>&1", vPath, vFrame, "frame.bmp");
-                    //int result = system(ffmpegCommand);
-                    //BMPImage * theImage = read_BMP_image("frame.bmp");
-                    //memcpy(&message[8], theImage->pixelData, vWidth*vHeight*3);
-                    //char imageName[1024];
-                    //snprintf(imageName, sizeof(imageName), "frame%d.bmp", vFrame);
-                    //createBMP(imageName, decodedFrameBuf[currentFrame], vWidth, vHeight);
-                    //gettimeofday(&eT, NULL);
-                    //measure_print_time(sT, eT, "extract");
 
                     int Jsize = 0;
-                    //gettimeofday(&sT, NULL);
-                    //uint8_t * buffery;
                     convert_to_jpeg(decodedFrameBuf[currentFrame], vWidth, vHeight, &message[8], &Jsize, 65000);
-                    print_mem("4");
-                    //free(theImage->pixelData);
-                    //free(theImage);
-                    //gettimeofday(&eT, NULL);
-                    //measure_print_time(sT, eT, "JPEG");
-                    //printf("Jsize: %d\n", Jsize);
-                    //memcpy(&message[8],theImage->pixelData,Jsize);
-                    //free(buffery);
                     vFrame++;
-                    //printf("message[8-11] | ");
-                    //for (int i = 0; i < 4; ++i) {
-                    //    printf("%02x",message[8+i]);
-                    //}
-                    //printf("\n");
                     short vidWidth = vWidth;
                     short vidHeight = vHeight;
                     int packetSize = (65000)+8;
                     int vDataSize = packetSize-8;
                     message[0] = DATA_VIDEO_FRAME;
                     unsigned int totalSize = Jsize;
-                    //printf("Total size: %d\n", totalSize);
                     int parts = (totalSize/vDataSize)+1;
                     memcpy(&message[1], myID, 3);
                     unsigned int part = 0;
-                    //gettimeofday(&sT, NULL);
                     for (int i = 0; i < parts; ++i) {
-                        //printf("i! %d\n", i);
                         part = (parts-1)-i;
                         memcpy(&message[4], &part, 4);
                         int length = 0;
-                        //printf("i: %d\n", i);
-                        //printf("totalSize<vDataSize: %d<%d\n",totalSize, vDataSize);
                         if (totalSize<vDataSize) {
-                            //printf("using totalSize: %d\n",totalSize);
-                            //printf("Copying to 8 + (vDataSize * i): %d\n",8 + (vDataSize * i));
                             memcpy(&message[8], &message[8 + (vDataSize * i)], totalSize);
                             length = 8 + totalSize;
                         } else {
-                            //printf("using vDataSize: %d\n",vDataSize);
-                            //printf("Copying to 8 + (vDataSize * i): %d\n",(8 + (vDataSize * i)));
                             memcpy(&message[8], &message[8 + (vDataSize * i)], vDataSize);
                             length = 8 + vDataSize;
                         }
                         totalSize -= (length-8);
-                        //printf("Total size!: %d\n", totalSize);
                         send_UDP_datagram(localSocket, message, length, brokerAddr);
                     }
-                    print_mem("5");
                     currentFrame++;
-                    //gettimeofday(&eT, NULL);
-                    //measure_print_time(sT, eT, "packets");
                     memset(message, 0, Jsize);
-                    //gettimeofday(&sT2, NULL);
                 }
                 struct timeval currentTime;
                 gettimeofday(&currentTime, NULL);

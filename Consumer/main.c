@@ -218,8 +218,10 @@ void handle_packet(unsigned char * buffer, unsigned int packetLength){
 
         //printf("Writing to %d\n", 0);
         //memcpy(&jpegBuffer[0], &buffer[8], packetLength-8);
-        decode_jpeg(&buffer[8], frameBuffer, packetLength-8);
-        update_window();
+        if (display_Window == 1) {
+            decode_jpeg(&buffer[8], frameBuffer, packetLength - 8);
+            update_window();
+        }
         //imageSize += (packetLength-8);
         //printf("Copied memory succefully\n");
         //update_window();

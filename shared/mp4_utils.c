@@ -11,7 +11,6 @@ AVFrame* frame = NULL;
 int videoStreamIndex = -1;
 AVCodecParameters* codecpar = NULL; // Global codecpar
 
-int frames_in_buffer = 0;
 struct SwsContext* swsContext; // Global swsContext
 
 int open_input(const char* filename, unsigned char * decodedFrameBuf[], int width, int height) {
@@ -77,6 +76,15 @@ int open_input(const char* filename, unsigned char * decodedFrameBuf[], int widt
 }
 
 
+int reset_reader() {
+    // Seek to the beginning of the video stream
+    if (av_seek_frame(formatContext, videoStreamIndex, 0, AVSEEK_FLAG_BACKWARD) < 0) {
+        fprintf(stderr, "Error: Could not seek to the beginning of the video stream.\n");
+        return -1;
+    }
+
+    return 0;
+}
 
 int decode_frames(int batch_size, unsigned char* decodedFrameBuf[]) {
     AVPacket packet;
@@ -98,7 +106,6 @@ int decode_frames(int batch_size, unsigned char* decodedFrameBuf[]) {
                         int linesize[1] = { frame->width * 3 };
 
                         sws_scale(swsContext, (const uint8_t *const *)frame->data, frame->linesize, 0, frame->height, frameDataArray, linesize);
-
                         frames_decoded++;
                     }
 
@@ -112,8 +119,16 @@ int decode_frames(int batch_size, unsigned char* decodedFrameBuf[]) {
         av_packet_unref(&packet);
     }
 
-    return (frames_decoded > 0) ? 0 : -1;
+    if (frames_decoded > 0) {
+        return 0; // Finished decoding batch
+    } else if (frames_decoded == 0) {
+        reset_reader();
+        return -1; // End of file
+    } else {
+        return -2; // Error
+    }
 }
+
 
 
 

@@ -1,7 +1,8 @@
 #include <stdio.h>
 #include <jpeglib.h>
+#include <stdlib.h>
 
-void convert_to_jpeg(char * inputImage, int width, int height, unsigned char * outPutImage, int * size){
+void convert_to_jpeg(char* inputImage, int width, int height, unsigned char* outPutImage, int* size, int quality_threshold) {
     struct jpeg_compress_struct cinfo;
     struct jpeg_error_mgr jerr;
     JSAMPROW row_pointer[1];
@@ -20,22 +21,42 @@ void convert_to_jpeg(char * inputImage, int width, int height, unsigned char * o
     cinfo.input_components = 3;
     cinfo.in_color_space = JCS_RGB;
 
-    jpeg_set_defaults(&cinfo);
-    jpeg_set_quality(&cinfo, 20, TRUE);
+    int current_quality = 90;  // Starting quality
 
-    jpeg_start_compress(&cinfo, TRUE);
-    while (cinfo.next_scanline < cinfo.image_height) {
-        row_pointer[0] = &inputImage[cinfo.next_scanline * cinfo.image_width * 3];
-        jpeg_write_scanlines(&cinfo, row_pointer, 1);
+    while (current_quality >= 10) {
+        jpeg_set_defaults(&cinfo);
+        jpeg_set_quality(&cinfo, current_quality, TRUE);
+
+        jpeg_start_compress(&cinfo, TRUE);
+        while (cinfo.next_scanline < cinfo.image_height) {
+            row_pointer[0] = &inputImage[cinfo.next_scanline * cinfo.image_width * 3];
+            jpeg_write_scanlines(&cinfo, row_pointer, 1);
+        }
+        jpeg_finish_compress(&cinfo);
+
+        // Check if the size is below the threshold
+        if (jpeg_size <= quality_threshold) {
+            break;
+        }
+        free(jpeg_data);
+        // If the size is above the threshold, decrease quality by 10
+        current_quality -= 10;
+        jpeg_size = 0;  // Reset the size for the next iteration
+        jpeg_mem_dest(&cinfo, &jpeg_data, &jpeg_size);  // Reset memory destination
     }
-    jpeg_finish_compress(&cinfo);
+
     jpeg_destroy_compress(&cinfo);
+
+    if (current_quality < 10) {
+        fprintf(stderr, "Error: JPEG quality reached 10, but the size is still above the threshold.\n");
+        printf("Error: JPEG quality reached 10, but the size is still above the threshold.\n");
+        free(jpeg_data);
+        exit(1);
+    }
 
     // Copy the JPEG data to the output buffer
     *size = jpeg_size;
-    //char *buffer = (unsigned char*)malloc(jpeg_size);
     memcpy(outPutImage, jpeg_data, jpeg_size);
-    //memcpy(outPutImage, &buffer, sizeof(uint8_t *));
 
     // Clean up the memory buffer
     free(jpeg_data);

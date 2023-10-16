@@ -155,6 +155,9 @@ int recv_req_stream_subscribe(unsigned char * buf, struct consumer * requester, 
     for (int i = 0; i < prodList->size; ++i) {
         current_producer = getProducer(prodList, i);
         if (current_producer->myStream != NULL && *(uint32_t*)&packet_id == *(uint32_t*)&current_producer->myStream->streamID){
+            if (current_producer->myStream->type & (buf[0] & ~TYPE_MASK) == 0){
+                printf("Error, subscribe request types are not valid!");
+            }
             appendConsumer(current_producer->myStream->subscribers, requester);
             printf("Stream %s now has subscriber %s:%hu\n", current_producer->myStream->name, requester->caddr.ipAddr,requester->caddr.portNum);
             printf("Content types: ");

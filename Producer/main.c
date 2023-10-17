@@ -19,6 +19,7 @@
 #include "mp4_utils.c"
 #include "jpg_utils.c"
 #include "mem_tool.c"
+#include <sys/stat.h>
 
 
 
@@ -30,6 +31,7 @@ const int DESTINATION_PORT = 50000;
 char * stream_target;
 int streaming = 0;
 unsigned char streamType = 0;
+int connected = 0;
 
 
 clock_t  startA, endA;
@@ -62,6 +64,28 @@ unsigned char * textBuffer;
 int textFrame;
 char * tPath;
 
+
+int dirExists(char * directoryPath) {
+
+    struct stat st;
+    char * dir = malloc(strlen(directoryPath) +1);
+    strcpy(&dir[1], directoryPath);
+    dir[0] = '/';
+    if (stat(directoryPath, &st) == 0) {
+        if (S_ISDIR(st.st_mode)) {
+            return 0;
+        } else {
+            printf("%s: The path is not a directory.\n", directoryPath);
+            return -1;
+        }
+    } else {
+        printf("%s: The directory does not exist or there was an error.\n", directoryPath);
+        return -1;
+    }
+
+    return 0;
+}
+
 // Function to parse a string of the format "[X:Y]" and create a struct timeval
 struct timeval addTime(char *input) {
     struct timeval result;
@@ -74,7 +98,7 @@ struct timeval addTime(char *input) {
             long microseconds = tenths * 100000;
 
             // Make a copy of the global time struct
-            result = startT;
+            gettimeofday(&result, NULL);
             // Add the specified time interval to the copy
             result.tv_sec += seconds;
             result.tv_usec += microseconds;
@@ -175,6 +199,8 @@ void handle_packet(unsigned char * buffer){
         printf("ERROR PACKET RECEIVED, ERROR CODE %d\n", (int) buffer[1]);
     } else if (buffer[0] == CONTROL_PROD_CONNECT){
         printf("Received Connection confirmed from broker!\n");
+        memcpy(myID, &buffer[1], 3);
+        connected = 1;
     } else if ((buffer[0] & TYPE_MASK) == CONTROL_STREAM_UPDATE){
         printf("Received stream creation/validation from broker!\n");
         if (access(stream_target, F_OK) != -1) {
@@ -319,6 +345,7 @@ int main() {
                     if (textFrame == 20) {textFrame = 0;}
                     readLineFromFile(tPath, textFrame, textBuffer, 2048);
                     endT = addTime(textBuffer);
+                    textBuffer = &textBuffer[6]; //Remmove the [X:Y]
                     message[0] = DATA_TEXT_FRAME;
                     memcpy(&message[1], myID, 3);
                     memcpy(&message[4], textBuffer, strlen(textBuffer)+1);
@@ -338,9 +365,12 @@ int main() {
                 printf("Zero args inputted\n");
             } else {
                 if (strcmp(input_array[0], "connect") == 0 && input_count > 1) {
-                    printf("Sending connect request to broker, ID: %s\n", input_array[1]);
-                    length = send_prod_request_connect(message, input_array[1]);
-                    memcpy(myID, &message[1], 3);
+                    if (connected){
+                        printf("Error, still connect with ID: %02x%02x%02x!\n", myID[0],myID[1],myID[2]);
+                    } else {
+                        printf("Sending connect request to broker, ID: %s\n", input_array[1]);
+                        length = send_prod_request_connect(message, input_array[1]);
+                    }
                 } else if (strcmp(input_array[0], "stream") == 0) {
                     if (input_count < 2){printf("Error no types specified!\n");} else {
                         printf("requesting start stream of type %s\n", input_array[1]);
@@ -362,8 +392,10 @@ int main() {
                     }
                     if ((message[0] & (~TYPE_MASK)) & VIDEO_BIT){length = add_video_details(message, length, vWidth, vHeight);}
                 } else if (strcmp(input_array[0], "target") == 0){
-                    if (input_count < 2) {printf("Error no target specified!\n");} else {
+                    if (input_count < 2) {printf("Error no target specified!\n");}
+                    else if (dirExists(input_array[1]) == -1){printf("target does not exist!\n");} else {
                         stream_target = input_array[1];
+
                         printf("Stream target set at %s\n", stream_target);
                         vPath[0] = 0;
                         strcat(vPath, stream_target);

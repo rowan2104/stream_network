@@ -1,18 +1,18 @@
 [0:0] Ace Combat is a renowned flight simulation video game series.
 [2:4] It was developed by Namco (now Bandai Namco Entertainment).
-[4:7] The franchise debuted in 1995 with "Air Combat" on the PlayStation.
-[7:1] Ace Combat offers a unique blend of realistic aviation mechanics and a compelling fictional narrative.
-[10:3] Players assume the role of skilled fighter pilots.
-[12:6] They engage in thrilling dogfights and complete various aerial missions.
-[16:0] The games feature a wide array of fighter aircraft.
-[17:6] These aircraft are often based on real-world counterparts.
-[20:0] The series incorporates a rich lore, with fictional countries and conflicts.
-[22:2] One of the recurring elements is the Strangereal world setting.
-[24:7] Ace Combat games typically have a focus on fast-paced, arcade-style gameplay.
-[27:0] They cater to both casual and hardcore fans of the flight simulation genre.
-[29:5] The franchise boasts a loyal fan base and critical acclaim.
-[32:0] Ace Combat titles are known for their stunning graphics and immersive soundtracks.
-[35:2] The narratives often revolve around war, politics, and personal stories of pilots.
-[38:0] The series has seen various installments on multiple platforms.
-[40:3] Ace Combat has expanded to include spin-off games, anime adaptations, and novels.
-[43:0] It continues to captivate gamers with its exhilarating aerial combat experiences.
+[2:3] The franchise debuted in 1995 with "Air Combat" on the PlayStation.
+[2:6] Ace Combat offers a unique blend of realistic aviation mechanics and a compelling fictional narrative.
+[2:2] Players assume the role of skilled fighter pilots.
+[2:3] They engage in thrilling dogfights and complete various aerial missions.
+[3:6] The games feature a wide array of fighter aircraft.
+[2:6] These aircraft are often based on real-world counterparts.
+[2:2] The series incorporates a rich lore, with fictional countries and conflicts.
+[2:2] One of the recurring elements is the Strangereal world setting.
+[2:5] Ace Combat games typically have a focus on fast-paced, arcade-style gameplay.
+[2:2] They cater to both casual and hardcore fans of the flight simulation genre.
+[2:5] The franchise boasts a loyal fan base and critical acclaim.
+[2:3] Ace Combat titles are known for their stunning graphics and immersive soundtracks.
+[2:2] The narratives often revolve around war, politics, and personal stories of pilots.
+[2:5] The series has seen various installments on multiple platforms.
+[2:3] Ace Combat has expanded to include spin-off games, anime adaptations, and novels.
+[2:3] It continues to captivate gamers with its exhilarating aerial combat experiences.

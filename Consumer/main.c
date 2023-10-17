@@ -98,7 +98,6 @@ int create_listening_socket() {
 }
 
 void send_UDP_datagram(int clientSocket, unsigned char * buffer, int buf_size, struct sockaddr_in destAddr){
-    printf("LAMO\n");
     socklen_t destAddrLen = sizeof(destAddr);
     int rc = sendto(clientSocket, buffer, buf_size, 0, (struct sockaddr *)&destAddr, destAddrLen);
     if (rc < 0) {

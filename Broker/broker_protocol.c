@@ -154,33 +154,40 @@ int recv_req_stream_subscribe(unsigned char * buf, struct consumer * requester, 
     memcpy(packet_id, &buf[1], 4);
     for (int i = 0; i < prodList->size; ++i) {
         current_producer = getProducer(prodList, i);
-        if (current_producer->myStream != NULL && *(uint32_t*)&packet_id == *(uint32_t*)&current_producer->myStream->streamID){
-            if (current_producer->myStream->type & (buf[0] & ~TYPE_MASK) == 0){
-                printf("Error, subscribe request types are not valid!");
-            }
-            appendConsumer(current_producer->myStream->subscribers, requester);
-            printf("Stream %s now has subscriber %s:%hu\n", current_producer->myStream->name, requester->caddr.ipAddr,requester->caddr.portNum);
-            printf("Content types: ");
-            if (types & AUDIO_BIT){printf("a");}
-            if (types & VIDEO_BIT){printf("v");}
-            if (types & TEXT_BIT){printf("t");}
-            printf("\n");
-            printf("Sending Confirmation\n");
-            buf[0] = CONTROL_SUBSCRIBE;
-            buf[0] = buf[0] | types;
-            memcpy(&buf[1], current_producer->myStream->streamID, 4);
-            int header = 5;
-            if (current_producer->myStream->type & VIDEO_BIT){
-                memcpy(&buf[header], &current_producer->myStream->vWidth, 2);
-                memcpy(&buf[header+2], &current_producer->myStream->vHeight, 2);
-                header +=4;
-            }
-            return header;
+        if (current_producer->myStream != NULL && *(uint32_t*)&packet_id == *(uint32_t*)&current_producer->myStream->streamID) {
+            break;
         }
+    }
 
+    if (search_consumers_ip(requester->caddr.ipAddr, current_producer->myStream->subscribers) == NULL) {
+        if (current_producer->myStream->type & (buf[0] & ~TYPE_MASK) == 0) {
+            printf("Error, subscribe request types are not valid!");
+        }
+        appendConsumer(current_producer->myStream->subscribers, requester);
+        printf("Stream %s now has subscriber %s:%hu\n", current_producer->myStream->name,
+               requester->caddr.ipAddr, requester->caddr.portNum);
+        printf("Content types: ");
+        if (types & AUDIO_BIT) { printf("a"); }
+        if (types & VIDEO_BIT) { printf("v"); }
+        if (types & TEXT_BIT) { printf("t"); }
+        printf("\n");
+        printf("Sending Confirmation\n");
+        buf[0] = CONTROL_SUBSCRIBE;
+        buf[0] = buf[0] | types;
+        memcpy(&buf[1], current_producer->myStream->streamID, 4);
+        int header = 5;
+        if (current_producer->myStream->type & VIDEO_BIT) {
+            memcpy(&buf[header], &current_producer->myStream->vWidth, 2);
+            memcpy(&buf[header + 2], &current_producer->myStream->vHeight, 2);
+            header += 4;
+        }
+        return header;
+    }else {
+        printf("Consumer already subscribed!\n");
     }
 
     buf[0] == ERROR;
+    memset(&buf[1],0,3);
     return 4;
 }
 

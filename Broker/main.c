@@ -147,7 +147,7 @@ void handle_packet(unsigned char * buffer, int packetLength){
         length = recv_req_stream_subscribe(buffer, search_consumers_ip(source_addr.ipAddr, connected_consumers),
                                            connected_producers);
 
-    } else if (buffer[0] == DATA_VIDEO_FRAME || buffer[0] == DATA_TEXT_FRAME) {
+    } else if (buffer[0] == DATA_VIDEO_FRAME || buffer[0] == DATA_TEXT_FRAME|| buffer[0] == DATA_AUDIO_FRAME) {
         struct stream * currentStream = search_producers_id(&buffer[1], connected_producers)->myStream;
         for (int i = 0; i < currentStream->subscribers->size; ++i) {
             struct consumer * cConsumer = getConsumer(currentStream->subscribers, i);

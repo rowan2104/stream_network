@@ -18,6 +18,7 @@
 #include <libavutil/imgutils.h>
 #include "mp4_utils.c"
 #include "jpg_utils.c"
+#include "mp3_utils.c"
 #include "mem_tool.c"
 #include <sys/stat.h>
 
@@ -34,7 +35,7 @@ unsigned char streamType = 0;
 int connected = 0;
 
 
-clock_t  startA, endA;
+struct timeval  startA, endA;
 struct timeval  startV, endV;
 struct timeval  startT, endT;
 
@@ -64,6 +65,7 @@ unsigned char * textBuffer;
 int textFrame;
 char * tPath;
 
+char * aPath;
 
 int dirExists(char * directoryPath) {
 
@@ -221,6 +223,15 @@ void handle_packet(unsigned char * buffer){
                 printf("end time: %lf\n",(double)(endT.tv_sec) + (double)(endT.tv_usec) / 1000000.0);
 
             }
+            if (streamType & AUDIO_BIT){
+                streaming = 1;
+                printf("streaming audio.mp3 content\n");
+                open_mp3(aPath);
+                gettimeofday(&startA, NULL);
+                endA.tv_sec = 0;
+                endA.tv_usec = 0;
+                aFrame = 0;
+            }
             if (streamType == 0){printf("No type! Stopping stream!");streaming = 0;}
         } else {
             printf("%s does not exist in the current directory.\n", stream_target);
@@ -250,6 +261,7 @@ int main() {
     vHeight = 0;
     vPath = malloc(1024);
     tPath = malloc(1024);
+    aPath = malloc(1024);
     fps = 0;
 
     decodedFrameBuf[vBatchSize];
@@ -353,6 +365,21 @@ int main() {
                     send_UDP_datagram(localSocket, message, length, brokerAddr);
                     memset(message, 0, MAX_BUFFER_SIZE);
                 }
+                elapsedTime  = (double)(currentTime.tv_sec - startA.tv_sec) + (double)(currentTime.tv_usec - startA.tv_usec) / 1000000.0;
+                //printf("%lf > %lf\n", elapsedTime, ((double)endA.tv_sec + ( (double)endA.tv_usec /1000000.0)));
+                if (elapsedTime > ((double)endA.tv_sec + ( (double)endA.tv_usec /1000000.0)) && (streamType & AUDIO_BIT)) {
+                    printf("Time elsapse, sending audio!\n");
+                    gettimeofday(&startA, NULL);
+                    message[0] = DATA_AUDIO_FRAME;
+                    memcpy(&message[1], myID, 3);
+                    memcpy(&message[4], (&aFrame)+2,2);
+                    int length = 0;
+                    mp3_read_chunk(&message[6], &endA, &length);
+                    send_UDP_datagram(localSocket, message, length, brokerAddr);
+                    memset(message, 0, MAX_BUFFER_SIZE);
+                    //printf("startA: %lf\n", (double)(startA.tv_sec + ((double)startA.tv_usec/1000000.0)));
+                    //printf("endA: %lf\n", (double)(endA.tv_sec + ((double)endA.tv_usec/1000000.0)));
+                }
             }
         }
 
@@ -403,6 +430,9 @@ int main() {
                         tPath[0] = 0;
                         strcat(tPath, stream_target);
                         strcat(tPath, "/text.txt");
+                        aPath[0] = 0;
+                        strcat(aPath, stream_target);
+                        strcat(aPath, "/audio.mp3");
                         length = 0;
                     }
                 } else if (strcmp(input_array[0], "error") == 0) {

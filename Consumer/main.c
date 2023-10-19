@@ -11,6 +11,7 @@
 #include "consumer_protocol.c"
 #include <SDL2/SDL.h>
 #include "jpg_utils.c"
+#include "mp3_utils.c"
 
 #define MAX_BUFFER_SIZE 8294400  // Maximum buffer size for incoming messages
 #define MAX_FRAME_SIZE 65000
@@ -28,6 +29,8 @@ SDL_Event event;
 int display_Window;
 int imageSize;
 int frameName = 0;
+
+int audio_num = 0;
 
 char * BROKER_IP_ADDRESS = "172.22.0.2";
 const int DESTINATION_PORT = 50000;
@@ -186,7 +189,10 @@ void handle_packet(unsigned char * buffer, unsigned int packetLength){
         printf("Content types: ");
         char types = buffer[0] & (~TYPE_MASK);
         int header = 5;
-        if (types & AUDIO_BIT){printf("a");}
+        if (types & AUDIO_BIT){
+            audio_num = 0;
+            printf("a");
+        }
         if (types & VIDEO_BIT){
             memcpy(&vWidth, &buffer[header], 2);
             memcpy(&vHeight, &buffer[header+2], 2);
@@ -207,6 +213,7 @@ void handle_packet(unsigned char * buffer, unsigned int packetLength){
         if (types & TEXT_BIT){
             printf("t");
         }
+
         printf("\n");
     } else if (buffer[0] == DATA_VIDEO_FRAME){
         //unsigned int part;
@@ -246,6 +253,11 @@ void handle_packet(unsigned char * buffer, unsigned int packetLength){
         //}
     } else if (buffer[0] == DATA_TEXT_FRAME){
         printf("%s\n", &buffer[4]);
+    } else if (buffer[0] == DATA_AUDIO_FRAME){
+        char outputFileName[100];
+        snprintf(outputFileName, sizeof(outputFileName), "audio_%d.mp3", audio_num);
+        save_mp3(outputFileName, &buffer[6], packetLength - 6);
+        audio_num+=1;
     }
 }
 

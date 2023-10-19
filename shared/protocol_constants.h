@@ -26,6 +26,7 @@ const unsigned char CONTROL_LIST_STREAM = 0b11100000;
 
 
 const unsigned char DATA_VIDEO_FRAME = 0b00000001;
+const unsigned char DATA_AUDIO_FRAME = 0b00000010;
 const unsigned char DATA_TEXT_FRAME = 0b00000100;
 
 const unsigned char ERROR = 0b00000000;

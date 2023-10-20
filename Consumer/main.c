@@ -13,8 +13,9 @@
 #include "jpg_utils.c"
 #include "mp3_utils.c"
 
-#define MAX_BUFFER_SIZE 8294400  // Maximum buffer size for incoming messages
-#define MAX_FRAME_SIZE 65000
+#define MAX_BUFFER_SIZE 66000  // Maximum buffer size for incoming messages
+#define  MAX_VIDEO_SIZE 8294400  // Maximum buffer size for incoming messages
+
 unsigned char * frameBuffer;
 unsigned char * jpegBuffer;
 int frameHead;
@@ -140,15 +141,18 @@ int create_SDL_window(short width, short height){
     }
 }
 
+void close_window() {
+    // Cleanup and exit
+    SDL_DestroyTexture(texture);
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
+    display_Window = 0;
+    return;
+}
 void update_window(){
     if (SDL_PollEvent(&event) && event.type == SDL_QUIT) {
-        // Cleanup and exit
-        SDL_DestroyTexture(texture);
-        SDL_DestroyRenderer(renderer);
-        SDL_DestroyWindow(window);
-        SDL_Quit();
-        display_Window = 0;
-        return;
+        close_window();
     }
     SDL_UpdateTexture(texture, NULL, frameBuffer, vWidth * 3);
 
@@ -159,44 +163,44 @@ void update_window(){
 }
 
 
-void handle_packet(unsigned char * buffer, unsigned int packetLength){
-    if (buffer[0] == ERROR){
+void handle_packet(unsigned char * buffer, unsigned int packetLength) {
+    if (buffer[0] == ERROR) {
         printf("ERROR PACKET RECEIVED, ERROR CODE %d\n", (int) buffer[1]);
     } else if (buffer[0] == CONTROL_CONS_CONNECT) {
         printf("Received Connection confirmed from broker!\n");
         connected = 1;
     } else if ((buffer[0] & TYPE_MASK) == CONTROL_LIST_STREAM) {
         printf("Received Connection confirmed from broker!\n");
-        struct list_packet* packet = (struct list_packet*)buffer;
+        struct list_packet *packet = (struct list_packet *) buffer;
         printf("%d streams found!\n", packet->size);
         unsigned char tempString[5];
         tempString[4] = 0;
         for (int i = 0; i < packet->size; ++i) {
             memcpy(&tempString[0], packet->listOfStream[i].id, 4);
-            printf("%02x%02x%02x%02x: ", tempString[0],tempString[1],
-                   tempString[2],tempString[3]);
+            printf("%02x%02x%02x%02x: ", tempString[0], tempString[1],
+                   tempString[2], tempString[3]);
             printf("%s", (packet->listOfStream[i].type & AUDIO_BIT) ? "a" : "");
             printf("%s", (packet->listOfStream[i].type & VIDEO_BIT) ? "v" : "");
             printf("%s", (packet->listOfStream[i].type & TEXT_BIT) ? "t" : "");
-            if (strcmp(subscribed, tempString) == 0){
+            if (strcmp(subscribed, tempString) == 0) {
                 printf(" (SUBSCRIBED)");
             }
             printf("\n");
         }
-    } else if ((buffer[0] & TYPE_MASK) == CONTROL_SUBSCRIBE){
+    } else if ((buffer[0] & TYPE_MASK) == CONTROL_SUBSCRIBE) {
         memcpy(subscribed, &buffer[1], 4);
-        printf("Received subscription confirmed to %02x%02x%02x%02x\n", subscribed[0],subscribed[1],subscribed[2],subscribed[3]);
+        printf("Received subscription confirmed to %02x%02x%02x%02x\n", subscribed[0], subscribed[1], subscribed[2],
+               subscribed[3]);
         printf("Content types: ");
         char types = buffer[0] & (~TYPE_MASK);
         int header = 5;
-        if (types & AUDIO_BIT){
+        if (types & AUDIO_BIT) {
             audio_num = 0;
             printf("a");
         }
-        if (types & VIDEO_BIT){
+        if (types & VIDEO_BIT) {
             memcpy(&vWidth, &buffer[header], 2);
-            memcpy(&vHeight, &buffer[header+2], 2);
-            header+=4;
+            memcpy(&vHeight, &buffer[header + 2], 2);
             printf("video: Width: %hu| Height: %hu\n", vWidth, vHeight);
             if (display_Window == 0) {
                 create_SDL_window(vWidth, vHeight);
@@ -210,47 +214,36 @@ void handle_packet(unsigned char * buffer, unsigned int packetLength){
 
 
         }
-        if (types & TEXT_BIT){
+        if (types & TEXT_BIT) {
             printf("t");
         }
 
         printf("\n");
-    } else if (buffer[0] == DATA_VIDEO_FRAME){
-        //unsigned int part;
+    } else if ((buffer[0] & TYPE_MASK) == CONTROL_UNSUBSCRIBE) {
+        printf("Received unsubscripted confirmation to %02x%02x%02x%02x\n", buffer[1], buffer[2], buffer[3], buffer[4]);
+        memset(subscribed, 0, 4);
+        if (display_Window == 1) {
+            close_window();
+        }
 
-        //memcpy(&part, &buffer[4], 4);
-        //printf("part of frame: %d | %02x%02x%02x%02x\n", part, buffer[8], buffer[9], buffer[10],buffer[11]);
-        //printf("packetLength: %d\n", packetLength);
-
-        //printf("Writing to %d\n", 0);
-        //memcpy(&jpegBuffer[0], &buffer[8], packetLength-8);
+    } else if (buffer[0] == CONTROL_CONS_DISCONNECT) {
+        printf("Received disconnect confirmation!\n");
+        memset(subscribed, 0, 4);
+        if (display_Window == 1) {
+            close_window();
+        }
+        connected = 0;
+    } else if (buffer[0] == DATA_STREAM_DELETED){
+        printf("Received stream deletion from %02x%02x%02x\n", buffer[1], buffer[2], buffer[3]);
+        memset(subscribed, 0, 4);
+        if (display_Window == 1) {
+            close_window();
+        }
+    }else if (buffer[0] == DATA_VIDEO_FRAME){
         if (display_Window == 1) {
             decode_jpeg(&buffer[8], frameBuffer, packetLength - 8);
             update_window();
         }
-        //imageSize += (packetLength-8);
-        //printf("Copied memory succefully\n");
-        //update_window();
-        //if (part == 0) {
-            //printf("part 0, doing stuff!\n");
-            //snprintf(ffmpegCommand, sizeof(ffmpegCommand), "ffmpeg -y -i %s -vf \"select=gte(n\\,%d)\" -vframes 1 %s> /dev/null 2>&1", vPath, vFrame, "frame.bmp");
-            //int result = system(ffmpegCommand
-
-            //printf("\n");
-            //char imageName[1024];
-            //snprintf(imageName, sizeof(imageName), "frame%d.bmp", frameName);
-            //createBMP(imageName, frameBuffer, vWidth, vHeight);
-            /*for (int i = 0; i < vWidth*vHeight; ++i) {
-                char temp = frameBuffer[i*3];
-                frameBuffer[i*3] = frameBuffer[(i*3)+2];
-                frameBuffer[(i*3)+2] = temp;
-            }*/
-            //printf("Saved as file!\n");
-
-            //frameName+= 1;
-            //frameHead = 0;
-            //imageSize = 0;
-        //}
     } else if (buffer[0] == DATA_TEXT_FRAME){
         printf("%s\n", &buffer[4]);
     } else if (buffer[0] == DATA_AUDIO_FRAME){
@@ -297,7 +290,7 @@ int main() {
     subscribed = malloc(sizeof(char)*5);
     subscribed[4] = 0 ;
 
-    frameBuffer = malloc(MAX_BUFFER_SIZE);
+    frameBuffer = malloc(MAX_VIDEO_SIZE);
     jpegBuffer = malloc(MAX_BUFFER_SIZE);
     frameHead = 0;
 
@@ -356,7 +349,7 @@ int main() {
                     length = send_cons_request_connect(message);
                 } else if (strcmp(input_array[0], "list") == 0) {
                     printf("Requesting list of active streams.\n");
-                    if (input_count > 1){
+                    if (input_count > 1) {
                         printf("restraints: only %s/%s/%s\n", check_for(input_array[1], 'a', "audio"),
                                check_for(input_array[1], 'v', "video"), check_for(input_array[1], 't', "text"));
                         length = send_req_list_stream(message, input_array[1]);
@@ -365,12 +358,19 @@ int main() {
                     }
 
                 } else if (strcmp(input_array[0], "subscribe") == 0) {
-                    if (input_count < 3){printf("Error not enough arguments!\n");} else {
-                        printf("Sending subscribe request for %s broker\n", input_array[1]);
+                    if (input_count < 3) { printf("Error not enough arguments!\n"); }
+                    else {
+                        printf("Sending subscribe request for %s to broker\n", input_array[1]);
                         printf("content types: only %s/%s/%s\n", check_for(input_array[2], 'a', "audio"),
                                check_for(input_array[2], 'v', "video"), check_for(input_array[2], 't', "text"));
                         length = send_req_subscribe(message, input_array[1], input_array[2]);
                     }
+                } else if (strcmp(input_array[0], "disconnect") == 0){
+                    printf("sending disconnection request!\n");
+                    length = send_cons_request_disconnect(message);
+                } else if (strcmp(input_array[0], "unsubscribe") == 0) {
+                    printf("Sending unsubscribe request for %s to broker\n", input_array[1]);
+                    length = send_req_unsubscribe(message, input_array[1], input_array[2]);
                 } else {
                     printf("Invalid Command!\n");
                 }
@@ -395,6 +395,9 @@ int main() {
                 }
                 if (buffer[0] & 0b10000000) {
                     printf("Received packet from %s:%d\n", inet_ntoa(sourceAddr.sin_addr), ntohs(sourceAddr.sin_port));
+                }
+                if (buffer[0] == DATA_STREAM_DELETED){
+                    printf("stream has suddenly stopped!\n");
                 }
                 handle_packet(buffer, recv_len);
                 memset(buffer, 0, MAX_BUFFER_SIZE);

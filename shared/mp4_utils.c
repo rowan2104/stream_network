@@ -75,6 +75,32 @@ int open_input(const char* filename, unsigned char * decodedFrameBuf[], int widt
     return 0;
 }
 
+void close_mp4() {
+    if (formatContext) {
+        avformat_close_input(&formatContext);
+        formatContext = NULL;
+    }
+
+    if (codecContext) {
+        avcodec_free_context(&codecContext);
+        codecContext = NULL;
+    }
+
+    if (frame) {
+        av_frame_free(&frame);
+        frame = NULL;
+    }
+
+    if (swsContext) {
+        sws_freeContext(swsContext);
+        swsContext = NULL;
+    }
+
+
+    // Reset the global variables
+    videoStreamIndex = -1;
+    codecpar = NULL;
+}
 
 int reset_reader() {
     // Seek to the beginning of the video stream
@@ -99,9 +125,6 @@ int decode_frames(int batch_size, unsigned char* decodedFrameBuf[]) {
                     if (frames_decoded < batch_size) {
                         // Here, you can copy the frame data to the buffer as needed
                         // The frame data is available in frame->data[0], frame->linesize[0]
-
-
-
                         uint8_t *frameDataArray[1] = { decodedFrameBuf[frames_decoded] };
                         int linesize[1] = { frame->width * 3 };
 

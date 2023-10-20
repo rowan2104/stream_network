@@ -32,6 +32,18 @@ RUN apt-get install -y libsdl2-dev
 RUN apt-get install -y libffms2-dev
 RUN apt-get install -y libjpeg-dev
 
+
+# Update the package list and install the sysctl package
+RUN apt-get install -y procps
+
+# Add a script to set the kernel parameters
+COPY set_kernel_params.sh /usr/local/bin/set_kernel_params.sh
+RUN chmod +x /usr/local/bin/set_kernel_params.sh
+
+# Run the script to set the kernel parameters
+# RUN /usr/local/bin/set_kernel_params.sh
+
+
 # Set the working directory
 WORKDIR /work_space/
 COPY Producer /work_space/Producer
@@ -53,9 +65,11 @@ ENV XDG_RUNTIME_DIR=/tmp/foobar
 #Install script for easy wireshark open
 ENV PATH="/scripts:${PATH}"
 
+
+
 #Set STDERR to stdout I think
 CMD ["bash", "-c", "2>&1"]
-#CMD ["bash", "-c", "mkdir /tmp/foobar && chmod 700 /tmp/foobar"]
+CMD ["bash", "-c", "/usr/local/bin/set_kernel_params.sh"]
 #CMD ["bash", "-c", "bash"]
 #Sleep is for time for CMD windows to open
 CMD ["bash", "-c", "sleep 1.2 && gcc -g -o main main.c -ljpeg -lavformat -lavcodec -lavutil  -lffms2 -lswscale `sdl2-config --cflags --libs` && ./main"]

@@ -64,7 +64,6 @@ void convert_to_jpeg(char* inputImage, int width, int height, unsigned char* out
 
 void decode_jpeg(char * JpegData, char * output, int imageSize) {
     // Assume you have received the JPEG data in a buffer
-
     // Initialize libjpeg structures
     struct jpeg_decompress_struct cinfo;
     struct jpeg_error_mgr jerr;
@@ -80,7 +79,6 @@ void decode_jpeg(char * JpegData, char * output, int imageSize) {
     // Allocate memory for the pixel data
     int row_stride = cinfo.output_width * cinfo.output_components;
     char *pixelData = (char *)malloc(row_stride * cinfo.output_height);
-
     // Read scanlines and store them in the pixelData array
     char *row_pointer = pixelData;
     while (cinfo.output_scanline < cinfo.output_height) {
@@ -88,11 +86,8 @@ void decode_jpeg(char * JpegData, char * output, int imageSize) {
         row_pointer += row_stride;
     }
     memcpy(output, pixelData, row_stride * cinfo.output_height);
-
     // Finish decompression
     jpeg_finish_decompress(&cinfo);
-    // Cleanup
     jpeg_destroy_decompress(&cinfo);
-
     free(pixelData);
 }

@@ -61,6 +61,24 @@ struct consumer* getConsumer(struct consumer_list* list, int position) {
     return current->cons;
 }
 
+// Function to get a consumer at a given position
+int getConsumerPosition(struct consumer_list* list, struct consumer * target) {
+    if (list->head == NULL) {
+        return 0;
+    }
+
+    struct consumer_node* current = list->head;
+    for (int i = 0; i < list->size; i++) {
+        if (current == NULL) {
+            return 0;
+        }
+        if (current->cons == target){
+            return i;
+        }
+    }
+    return 0;
+}
+
 void freeConsumerList(struct consumer_list* list) {
     struct consumer_node* current = list->head;
     while (current != NULL) {

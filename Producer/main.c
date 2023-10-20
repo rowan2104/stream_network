@@ -25,7 +25,7 @@
 
 
 
-#define MAX_BUFFER_SIZE 8294400  // Maximum buffer size for incoming messages
+#define MAX_BUFFER_SIZE 66000  // Maximum buffer size for incoming messages
 char * BROKER_IP_ADDRESS = "172.22.0.2";
 const int DESTINATION_PORT = 50000;
 
@@ -199,10 +199,26 @@ char** splitString(char *input, int *count) {
 void handle_packet(unsigned char * buffer){
     if (buffer[0] == ERROR){
         printf("ERROR PACKET RECEIVED, ERROR CODE %d\n", (int) buffer[1]);
-    } else if (buffer[0] == CONTROL_PROD_CONNECT){
+    } else if (buffer[0] == CONTROL_PROD_CONNECT) {
         printf("Received Connection confirmed from broker!\n");
         memcpy(myID, &buffer[1], 3);
         connected = 1;
+    }else if (buffer[0] == CONTROL_STREAM_UPDATE) {
+        printf("Recieved stream deletion confirmation!\n");
+        streaming = 0;
+        vFrame = 0;
+        currentFrame = 0;
+        if (streamType & AUDIO_BIT){
+            close_mp3();
+        }
+        if (streamType & VIDEO_BIT){
+            close_mp4();
+            codec_opened = 0;
+        }
+        if (streamType & TEXT_BIT){
+            textFrame = 0;
+        }
+        streamType = 0;
     } else if ((buffer[0] & TYPE_MASK) == CONTROL_STREAM_UPDATE){
         printf("Received stream creation/validation from broker!\n");
         if (access(stream_target, F_OK) != -1) {
@@ -210,6 +226,8 @@ void handle_packet(unsigned char * buffer){
             if (streamType & VIDEO_BIT){
                 printf("streaming video.mp4 content\n");
                 streaming = 1;
+                vFrame = 0;
+                currentFrame = 0;
                 gettimeofday(&startV, NULL);
             }
             if (streamType & TEXT_BIT){
@@ -237,6 +255,24 @@ void handle_packet(unsigned char * buffer){
             printf("%s does not exist in the current directory.\n", stream_target);
             streaming = 0;
         }
+    } else if  (buffer[0] == CONTROL_PROD_DISCONNECT){
+        printf("Recieved succeful disconnect!\n");
+        streaming = 0;
+        vFrame = 0;
+        currentFrame = 0;
+        connected = 0;
+        if (streamType & AUDIO_BIT){
+            close_mp3();
+        }
+        if (streamType & VIDEO_BIT){
+            close_mp4();
+            codec_opened = 0;
+        }
+        if (streamType & TEXT_BIT){
+            textFrame = 0;
+        }
+        streamType = 0;
+        memset(myID, 0, 3);
     }
 }
 
@@ -321,6 +357,9 @@ int main() {
                     }
 
                     int Jsize = 0;
+                    char fName[50];
+                    //snprintf(fName, sizeof(fName), "frame_%d.bmp", vFrame);
+                    //createBMP(fName, decodedFrameBuf[currentFrame], vWidth, vHeight);
                     convert_to_jpeg(decodedFrameBuf[currentFrame], vWidth, vHeight, &message[8], &Jsize, 65000);
                     vFrame++;
                     short vidWidth = vWidth;
@@ -392,35 +431,39 @@ int main() {
                 printf("Zero args inputted\n");
             } else {
                 if (strcmp(input_array[0], "connect") == 0 && input_count > 1) {
-                    if (connected){
-                        printf("Error, still connect with ID: %02x%02x%02x!\n", myID[0],myID[1],myID[2]);
+                    if (connected) {
+                        printf("Error, still connect with ID: %02x%02x%02x!\n", myID[0], myID[1], myID[2]);
                     } else {
                         printf("Sending connect request to broker, ID: %s\n", input_array[1]);
                         length = send_prod_request_connect(message, input_array[1]);
                     }
                 } else if (strcmp(input_array[0], "stream") == 0) {
-                    if (input_count < 2){printf("Error no types specified!\n");} else {
+                    if (input_count < 2) { printf("Error no types specified!\n"); }
+                    else {
                         printf("requesting start stream of type %s\n", input_array[1]);
                         memcpy(&message[1], myID, 3);
                         length = send_request_stream_creation(message, input_array[1]);
                         streamType = message[0] & (~TYPE_MASK);
-                        if (streamType & VIDEO_BIT){
+                        if (streamType & VIDEO_BIT) {
                             getDetails(vPath, &fps, &vWidth, &vHeight);
-                            vRate = 1.0/(double)fps;
+                            vRate = 1.0 / (double) fps;
                             vFrame = 0;
                             printf("Video width: %d\n", vWidth);
                             printf("Video height: %d\n", vHeight);
                             printf("Video fps: %d\n", fps);
-                            printf("vRate: %lf\n",vRate );
+                            printf("vRate: %lf\n", vRate);
 
-                            printf("vpath: %s\n",vPath);
+                            printf("vpath: %s\n", vPath);
                         }
                         printf("streamType: %02x\n", streamType);
                     }
-                    if ((message[0] & (~TYPE_MASK)) & VIDEO_BIT){length = add_video_details(message, length, vWidth, vHeight);}
-                } else if (strcmp(input_array[0], "target") == 0){
-                    if (input_count < 2) {printf("Error no target specified!\n");}
-                    else if (dirExists(input_array[1]) == -1){printf("target does not exist!\n");} else {
+                    if ((message[0] & (~TYPE_MASK)) & VIDEO_BIT) {
+                        length = add_video_details(message, length, vWidth, vHeight);
+                    }
+                } else if (strcmp(input_array[0], "target") == 0) {
+                    if (input_count < 2) { printf("Error no target specified!\n"); }
+                    else if (dirExists(input_array[1]) == -1) { printf("target does not exist!\n"); }
+                    else {
                         stream_target = input_array[1];
 
                         printf("Stream target set at %s\n", stream_target);
@@ -435,6 +478,12 @@ int main() {
                         strcat(aPath, "/audio.mp3");
                         length = 0;
                     }
+                } else if(strcmp(input_array[0], "delete") == 0) {
+                    length = send_request_stream_deletion(message);
+                    memcpy(&message[1], myID, 3);
+                } else if (strcmp(input_array[0], "disconnect") == 0){
+                    length = send_request_prod_disconnect(message);
+                    memcpy(&message[1], myID, 3);
                 } else if (strcmp(input_array[0], "error") == 0) {
                     length = 1;
                     message[0] = ERROR;

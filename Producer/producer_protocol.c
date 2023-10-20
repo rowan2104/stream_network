@@ -39,6 +39,16 @@ int send_request_stream_creation(unsigned char * buf, char * type){
     return length;
 }
 
+int send_request_stream_deletion(unsigned char * buf){
+    buf[0] = CONTROL_REQUEST_STREAM_UPDATE;
+    return 4;
+}
+
+int send_request_prod_disconnect(unsigned char * buf){
+    buf[0] = CONTROL_PROD_REQUEST_DISCONNECT;
+    return 4;
+}
+
 int add_video_details(unsigned char * buf, int length, int width, int height){
     short w = width;
     short h = height;

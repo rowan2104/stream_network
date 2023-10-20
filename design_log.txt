@@ -41,6 +41,9 @@ BYTE     :  PURPOSE             : SENDERS - RECIEVERS   : ARG BYTES :           
 00000010 : audio frame
 00000100 : text frame
 
+00001000 : tell consumer stream deleted
+00001XXX : tell consumer stream updated
+
 0000 : client disconnected
 0001 : client connected
 0010 : client request disconnect

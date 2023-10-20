@@ -25,6 +25,12 @@ int send_cons_request_connect(unsigned char * buf){
     return length;
 }
 
+int send_cons_request_disconnect(unsigned char * buf){
+    buf[0] = CONTROL_CONS_REQUEST_DISCONNECT;
+    int length = 4;
+    return length;
+}
+
 int send_req_list_stream(unsigned char * buf, char * filter) {
     buf[0] = CONTROL_REQ_LIST_STREAM;
     if (strcmp(filter, "") == 0){
@@ -46,6 +52,16 @@ int send_req_subscribe(unsigned char * buf, char * id, char * type) {
         if (type[i] == 'v'){buf[0] = buf[0] | VIDEO_BIT;}
         if (type[i] == 't'){buf[0] = buf[0] | TEXT_BIT;}
     }
+    char theID[4];
+    hexStringToBytes(id, theID);
+    memcpy(&buf[1], theID, 4);
+
+    return 5; //length
+}
+
+int send_req_unsubscribe(unsigned char * buf, char * id, char * type) {
+    buf[0] = CONTROL_REQ_UNSUBSCRIBE;
+
     char theID[4];
     hexStringToBytes(id, theID);
     memcpy(&buf[1], theID, 4);

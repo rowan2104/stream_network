@@ -45,6 +45,18 @@ struct producer * search_producer_ip(char * ip, struct producer_list * prodList)
     return NULL;
 }
 
+struct producer * search_producer_streamid(unsigned char newID[4], struct producer_list * prodList){
+    int i = 0;
+    struct producer * temp;
+    while (getProducer(prodList, i) != NULL){
+        temp = getProducer(prodList, i);
+        if (newID[0] == temp->myStream->streamID[0] && newID[1] == temp->myStream->streamID[1] && newID[2] == temp->myStream->streamID[2] && newID[3] == temp->myStream->streamID[3]){
+            return temp;
+        }
+        i++;
+    }
+    return NULL;
+}
 
 int add_new_consumer(struct consumer_list * consList, address cons_addr){
     if (search_consumers_ip(cons_addr.ipAddr, consList) == NULL){
@@ -62,7 +74,8 @@ int add_new_producer(unsigned char newID[3], struct producer_list * prodList, ad
     if (search_producers_id(newID, prodList) == NULL){
         int lastPos = prodList->size;
         struct producer * temp = malloc(sizeof(struct producer));
-        memcpy(&temp->paddr, &prod_addr, sizeof(address));
+        temp->paddr.ipAddr = strdup(prod_addr.ipAddr);
+        temp->paddr.portNum = prod_addr.portNum;
         temp->name = malloc(sizeof(char)*7);
         sprintf(temp->name, "%02x%02x%02x", newID[0], newID[1], newID[2]);
         temp->name[6] = 0;
@@ -125,6 +138,16 @@ struct stream *  recv_request_create_stream(unsigned char * buf, struct producer
     }
     return newStream;
 }
+
+int recv_request_delete_stream(unsigned char * buf, struct producer_list * prodList){
+    struct producer * currentProd = search_producers_id(&buf[1], prodList);
+    if (currentProd == NULL){return 1;}
+    freeConsumerList(currentProd->myStream->subscribers);
+    currentProd->myStream = NULL;
+    return 0;
+}
+
+
 int send_list_stream(unsigned char * buf, struct producer_list * prodList){
     int length = 5;
     uint32_t num_of_streams = 0;
@@ -152,13 +175,18 @@ int recv_req_stream_subscribe(unsigned char * buf, struct consumer * requester, 
     struct producer * current_producer;
     unsigned char packet_id[4];
     memcpy(packet_id, &buf[1], 4);
+    int found = 0;
     for (int i = 0; i < prodList->size; ++i) {
         current_producer = getProducer(prodList, i);
         if (current_producer->myStream != NULL && *(uint32_t*)&packet_id == *(uint32_t*)&current_producer->myStream->streamID) {
+            found = 1;
             break;
         }
     }
-
+    if (found == 0){
+        printf("Stream not found!\n");
+        return -1;
+    }
     if (search_consumers_ip(requester->caddr.ipAddr, current_producer->myStream->subscribers) == NULL) {
         if (current_producer->myStream->type & (buf[0] & ~TYPE_MASK) == 0) {
             printf("Error, subscribe request types are not valid!");
@@ -193,7 +221,33 @@ int recv_req_stream_subscribe(unsigned char * buf, struct consumer * requester, 
 
 
 
+int recv_req_stream_unsubscribe(unsigned char * buf, struct consumer * requester, struct producer_list * prodList){
+    unsigned char packet_id[4];
+    memcpy(packet_id, &buf[1], 4);
+    struct producer * current_producer = search_producer_streamid(packet_id, prodList);
+    if (current_producer == NULL){
+        printf("ERROR, STREAM %02x%02x%02x%02x not found!\n",packet_id[0],packet_id[1],packet_id[2],packet_id[3]);
+        buf[0] == ERROR;
+        memset(&buf[1],0,3);
+        return 4;
+    }
 
+    if (search_consumers_ip(requester->caddr.ipAddr, current_producer->myStream->subscribers) != NULL) {
+        removeConsumer(current_producer->myStream->subscribers, getConsumerPosition(current_producer->myStream->subscribers, requester));
+        printf(" subscriber %s:%hu for Stream %s now has unsubscribed\n", requester->caddr.ipAddr, requester->caddr.portNum,
+            current_producer->myStream->name);
+        printf("Sending Confirmation\n");
+        buf[0] = CONTROL_UNSUBSCRIBE;
+        memcpy(&buf[1], current_producer->myStream->streamID, 4);
+        int header = 5;
+        return header;
+    }else {
+        printf("Consumer is not subscribe!\n");
+    }
 
+    buf[0] == ERROR;
+    memset(&buf[1],0,3);
+    return 4;
+}
 
 

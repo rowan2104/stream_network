@@ -61,6 +61,24 @@ struct producer* getProducer(struct producer_list* list, int position) {
     return current->prod;
 }
 
+// Function to get a consumer at a given position
+int getProducerPosition(struct producer_list* list, struct producer * target) {
+    if (list->head == NULL) {
+        return 0;
+    }
+
+    struct producer_node* current = list->head;
+    for (int i = 0; i < list->size; i++) {
+        if (current == NULL) {
+            return 0;
+        }
+        if (current->prod == target){
+            return i;
+        }
+    }
+    return 0;
+}
+
 void freeProducerList(struct producer_list* list) {
     struct producer_node* current = list->head;
     while (current != NULL) {

@@ -156,7 +156,7 @@ int decode_frames(int batch_size, unsigned char* decodedFrameBuf[]) {
 
 
 
-int getDetails(const char *inputFilename, int * fps, int *width, int *height) {
+int getDetails(const char *inputFilename, int * fps, short *width, short *height) {
     avformat_network_init();
 
     AVFormatContext *formatContext = avformat_alloc_context();

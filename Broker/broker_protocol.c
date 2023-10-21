@@ -5,6 +5,12 @@ void print_id(unsigned char * buf){
     }
 }
 
+void print_id2(unsigned char * buf){
+    for (int i = 0; i < 4; ++i) {
+        printf("%02x", buf[i]);
+    }
+}
+
 struct producer * search_producers_id(unsigned char newID[3], struct producer_list * prodList){
     int i = 0;
     int y = (newID[0] << 0) | (newID[1] << 8) | (newID[2] << 16);
@@ -48,8 +54,12 @@ struct producer * search_producer_ip(char * ip, struct producer_list * prodList)
 struct producer * search_producer_streamid(unsigned char newID[4], struct producer_list * prodList){
     int i = 0;
     struct producer * temp;
+    print_id2(newID);
+    printf("\n");
     while (getProducer(prodList, i) != NULL){
         temp = getProducer(prodList, i);
+        print_id2(temp->myStream->streamID);
+        printf("\n");
         if (newID[0] == temp->myStream->streamID[0] && newID[1] == temp->myStream->streamID[1] && newID[2] == temp->myStream->streamID[2] && newID[3] == temp->myStream->streamID[3]){
             return temp;
         }
@@ -119,13 +129,10 @@ struct stream *  recv_request_create_stream(unsigned char * buf, struct producer
     struct producer * currentProd = search_producers_id(&buf[1], prodList);
     if (currentProd == NULL){return NULL;}
     struct stream * newStream = malloc(sizeof(struct stream));
-    memcpy(newStream->streamID, &buf[1], 3);
-    int header = 4;
-    newStream->streamID[3] = 0;
+    memcpy(newStream->streamID, &buf[1], 4);
+    int header = 5;
     memcpy(newStream->name, currentProd->name, 6);
-    newStream->name[6] = '0';
-    newStream->name[7] = '0';
-    newStream->name[8] = 0;
+    snprintf(&newStream->name[6], 3, "%02x", buf[4]);
     newStream->type = (buf[0] & (~TYPE_MASK));
     newStream->creator = currentProd;
     newStream->subscribers = malloc(sizeof(struct consumer_list));
@@ -175,15 +182,8 @@ int recv_req_stream_subscribe(unsigned char * buf, struct consumer * requester, 
     struct producer * current_producer;
     unsigned char packet_id[4];
     memcpy(packet_id, &buf[1], 4);
-    int found = 0;
-    for (int i = 0; i < prodList->size; ++i) {
-        current_producer = getProducer(prodList, i);
-        if (current_producer->myStream != NULL && *(uint32_t*)&packet_id == *(uint32_t*)&current_producer->myStream->streamID) {
-            found = 1;
-            break;
-        }
-    }
-    if (found == 0){
+    current_producer = search_producer_streamid(&buf[1], prodList);
+    if (current_producer == NULL){
         printf("Stream not found!\n");
         return -1;
     }

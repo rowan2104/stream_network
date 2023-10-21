@@ -50,6 +50,32 @@ int open_mp3(const char *inputFileName) {
     return 0;
 }
 
+
+
+void reset_mp3_reader() {
+    // Close the current input and output
+    avformat_close_input(&inputFormatContext);
+    avcodec_free_context(&mp3CodecContext);
+    av_packet_unref(&partial_packet);
+    if (outputFile) {
+        fclose(outputFile);
+        outputFile = NULL;
+    }
+
+    // Reset global variables
+    current_chunk_index = 1;
+    chunk_duration_ms = 0;
+    byte_threshold = 0;
+
+    // Reopen the input file
+    const char* inputFileName = "your_input_file.mp3";  // Replace with your actual file name
+    int ret = open_mp3(inputFileName);
+    if (ret < 0) {
+        // Handle error
+    }
+}
+
+
 // Function to read and encode the next chunk of audio data
 int mp3_read_chunk(unsigned char * output, struct timeval *chunk_duration, int * length) {
     AVPacket packet;
@@ -82,7 +108,7 @@ int mp3_read_chunk(unsigned char * output, struct timeval *chunk_duration, int *
         }
         av_packet_unref(&packet);
     }
-    printf("ERROR!\n");
+
     chunk_duration->tv_usec = chunk_duration_ms * 1000;
     chunk_duration->tv_sec = chunk_duration->tv_usec / 1000000;
     chunk_duration->tv_usec %= 1000000;

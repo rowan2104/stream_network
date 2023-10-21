@@ -15,7 +15,7 @@
 
 #define PORT 50000  // The port on which the server will listen
 #define MAX_BUFFER_SIZE 8294400  // Maximum buffer size for incoming messages
-
+#define MAX_DATA_SIZE 50000  // Maximum buffer size for incoming messages
 
 
 address dest_addr;
@@ -126,119 +126,128 @@ int stop_all(struct producer * requester){
 }
 
 void handle_packet(unsigned char * buffer, int packetLength){
-    if (buffer[0] & 0b10000000) {
-        printf("Control byte from %X:\n", buffer[0]);
-    }
+
     int length = -1;
-    if (buffer[0] == CONTROL_PROD_REQUEST_CONNECT){
-        int result = recv_prod_request_connect(buffer, connected_producers, source_addr);
-        if (result != -1){
-            printf("sending connection confirmed to %s\n",
-                   getProducer(connected_producers, result)->name);
-            buffer[0] = CONTROL_PROD_CONNECT;
-            memcpy(&buffer[1], getProducer(connected_producers, result)->id, 3);
-            length = 4;
-            dest_addr = getProducer(connected_producers, result)->paddr;
-        }
-    } else if (buffer[0] == CONTROL_CONS_REQUEST_CONNECT) {
-        int result = recv_cons_request_connect(buffer, connected_consumers, source_addr);
-        if (result != -1) {
-            printf("sending connection confirmed client at %s:%hu\n", source_addr.ipAddr, source_addr.portNum);
-            buffer[0] = CONTROL_CONS_CONNECT;
-            length = 4;
-            dest_addr = getConsumer(connected_consumers, result)->caddr;
-        }
-    }else if (buffer[0] == CONTROL_REQUEST_STREAM_UPDATE) {
-        unsigned char prodID[3];
-        buffer[0] = DATA_STREAM_DELETED;
+
+    if (buffer[0] == DATA_VIDEO_FRAME || buffer[0] == DATA_TEXT_FRAME|| buffer[0] == DATA_AUDIO_FRAME) {
         struct stream * currentStream = search_producers_id(&buffer[1], connected_producers)->myStream;
         for (int i = 0; i < currentStream->subscribers->size; ++i) {
             struct consumer * cConsumer = getConsumer(currentStream->subscribers, i);
-
-            send_UDP_datagram(serverSocket, buffer, 4,
-                              create_destination_socket(cConsumer->caddr.ipAddr, cConsumer->caddr.portNum));
-        }
-        if (recv_request_delete_stream(buffer, connected_producers) == 1){
-        printf("ERROR DELETING STREAM!\n");
-        } else {
-            length = 4;
-            buffer[0] = CONTROL_STREAM_UPDATE;
-            length = 4;
-        }
-    } else if ((buffer[0] & TYPE_MASK) == CONTROL_REQUEST_STREAM_UPDATE) {
-        printf("Received Stream creation request!\n");
-        struct stream *newStream = recv_request_create_stream(buffer, connected_producers);
-        if (newStream != NULL) {
-            struct producer *theProd = newStream->creator;
-            if (theProd->myStream == NULL) {
-                theProd->myStream = newStream;
-                printf("created a new stream %s, from producer %s\n", theProd->myStream->name, theProd->name);
-                printf("stream of type: ");
-                if (newStream->type & AUDIO_BIT) { printf("a"); }
-                if (newStream->type & VIDEO_BIT) { printf("v"); }
-                if (newStream->type & TEXT_BIT) { printf("t"); }
-                printf("\n");
-                dest_addr = theProd->paddr;
-            } else {
-                printf("stream already exists, updating!\n");
-                theProd->myStream = newStream;
-                printf("stream of type: ");
-                if (newStream->type & AUDIO_BIT) { printf("a"); }
-                if (newStream->type & VIDEO_BIT) { printf("v"); }
-                if (newStream->type & TEXT_BIT) { printf("t"); }
-                printf("\n");
-                dest_addr = theProd->paddr;
-            }
-            printf("Sending stream confirmation!\n");
-            buffer[0] = CONTROL_STREAM_UPDATE | newStream->type;
-            length = 4;
-        } else {
-            printf("Error creating stream!\n");
-        }
-
-    } else if(buffer[0] == CONTROL_CONS_REQUEST_DISCONNECT) {
-        printf("Receive disconnect request from, client at %s:%hu\n", source_addr.ipAddr, source_addr.portNum);
-        printf("First, unsubscribing client from all streams!\n");
-        unsub_all(search_consumers_ip(source_addr.ipAddr, connected_consumers));
-        printf("Second, removing client from connect list!\n");
-        remove_client(search_consumers_ip(source_addr.ipAddr, connected_consumers));
-        printf("Sending disconnect confirmation!\n");
-        buffer[0] = CONTROL_CONS_DISCONNECT;
-        length = 4;
-    } else if (buffer[0] == CONTROL_PROD_REQUEST_DISCONNECT) {
-        printf("Receive disconnect request from, producer at %s:%hu\n", source_addr.ipAddr, source_addr.portNum);
-        printf("First, stopping all producer streams!\n");
-        stop_all(search_producer_ip(source_addr.ipAddr, connected_producers));
-        printf("Second, removing producer from connect list!\n");
-        removeProducer(connected_producers, getProducerPosition(connected_producers, search_producer_ip(source_addr.ipAddr, connected_producers)));
-        printf("Sending disconnect confirmation!\n");
-        buffer[0] = CONTROL_PROD_DISCONNECT;
-        length = 4;
-    } else if ((buffer[0] & TYPE_MASK) == CONTROL_REQ_LIST_STREAM) {
-        printf("Receive request list of streams request\n");
-        length = send_list_stream(buffer, connected_producers);
-        printf("Sending back list of size: %d\n", * (int * ) &buffer[1]);
-        dest_addr = source_addr;
-    } else if ((buffer[0] & TYPE_MASK) == CONTROL_REQ_SUBSCRIBE) {
-        printf("Recieve subscribe request from, client at %s:%hu\n", source_addr.ipAddr, source_addr.portNum);
-        length = recv_req_stream_subscribe(buffer, search_consumers_ip(source_addr.ipAddr, connected_consumers),
-                                           connected_producers);
-    } else if ((buffer[0] & TYPE_MASK) == CONTROL_REQ_UNSUBSCRIBE) {
-        printf("Recieve unsubscribe request from, client at %s:%hu\n", source_addr.ipAddr, source_addr.portNum);
-        length = recv_req_stream_unsubscribe(buffer, search_consumers_ip(source_addr.ipAddr, connected_consumers),
-                                           connected_producers);
-    } else if (buffer[0] == DATA_VIDEO_FRAME || buffer[0] == DATA_TEXT_FRAME|| buffer[0] == DATA_AUDIO_FRAME) {
-        struct stream * currentStream = search_producers_id(&buffer[1], connected_producers)->myStream;
-        for (int i = 0; i < currentStream->subscribers->size; ++i) {
-            struct consumer * cConsumer = getConsumer(currentStream->subscribers, i);
-            //printf("Fowarding with length %d to %s:%hu\n", packetLength, cConsumer->caddr.ipAddr, cConsumer->caddr.portNum);
             send_UDP_datagram(serverSocket, buffer, packetLength,
                               create_destination_socket(cConsumer->caddr.ipAddr, cConsumer->caddr.portNum));
         }
         length = -1;
 
-    } else if (ERROR){
-        printf("RECEIVED ERROR PACKET!\n");
+    } else {
+        if (buffer[0] & 0b10000000) {
+            printf("Control byte from %X:\n", buffer[0]);
+        }
+        if (buffer[0] == CONTROL_PROD_REQUEST_CONNECT) {
+            int result = recv_prod_request_connect(buffer, connected_producers, source_addr);
+            if (result != -1) {
+                printf("sending connection confirmed to %s\n",
+                       getProducer(connected_producers, result)->name);
+                buffer[0] = CONTROL_PROD_CONNECT;
+                memcpy(&buffer[1], getProducer(connected_producers, result)->id, 3);
+                length = 4;
+                dest_addr = getProducer(connected_producers, result)->paddr;
+            }
+        } else if (buffer[0] == CONTROL_CONS_REQUEST_CONNECT) {
+            int result = recv_cons_request_connect(buffer, connected_consumers, source_addr);
+            if (result != -1) {
+                printf("sending connection confirmed client at %s:%hu\n", source_addr.ipAddr, source_addr.portNum);
+                buffer[0] = CONTROL_CONS_CONNECT;
+                length = 4;
+                dest_addr = getConsumer(connected_consumers, result)->caddr;
+            }
+        } else if (buffer[0] == CONTROL_REQUEST_STREAM_UPDATE) {
+            unsigned char prodID[3];
+            buffer[0] = DATA_STREAM_DELETED;
+            struct stream *currentStream = search_producers_id(&buffer[1], connected_producers)->myStream;
+            for (int i = 0; i < currentStream->subscribers->size; ++i) {
+                struct consumer *cConsumer = getConsumer(currentStream->subscribers, i);
+
+                send_UDP_datagram(serverSocket, buffer, 4,
+                                  create_destination_socket(cConsumer->caddr.ipAddr, cConsumer->caddr.portNum));
+            }
+            if (recv_request_delete_stream(buffer, connected_producers) == 1) {
+                printf("ERROR DELETING STREAM!\n");
+            } else {
+                length = 4;
+                buffer[0] = CONTROL_STREAM_UPDATE;
+                length = 4;
+            }
+        } else if ((buffer[0] & TYPE_MASK) == CONTROL_REQUEST_STREAM_UPDATE) {
+            printf("Received Stream creation request!\n");
+            struct stream *newStream = recv_request_create_stream(buffer, connected_producers);
+            if (newStream != NULL) {
+                struct producer *theProd = newStream->creator;
+                if (theProd->myStream == NULL) {
+                    theProd->myStream = newStream;
+                    printf("created a new stream %s, from producer %s\n", theProd->myStream->name, theProd->name);
+                    printf("stream of type: ");
+                    if (newStream->type & AUDIO_BIT) { printf("a"); }
+                    if (newStream->type & VIDEO_BIT) { printf("v"); }
+                    if (newStream->type & TEXT_BIT) { printf("t"); }
+                    printf("\n");
+                    dest_addr = theProd->paddr;
+                } else {
+                    printf("stream already exists, updating!\n");
+                    theProd->myStream = newStream;
+                    printf("stream of type: ");
+                    if (newStream->type & AUDIO_BIT) { printf("a"); }
+                    if (newStream->type & VIDEO_BIT) { printf("v"); }
+                    if (newStream->type & TEXT_BIT) { printf("t"); }
+                    printf("\n");
+                    dest_addr = theProd->paddr;
+                }
+                printf("Sending stream confirmation!\n");
+                buffer[0] = CONTROL_STREAM_UPDATE | newStream->type;
+                memcpy(&buffer[1], newStream->streamID, 4);
+                length = 5;
+            } else {
+                printf("Error creating stream!\n");
+            }
+
+        } else if (buffer[0] == CONTROL_CONS_REQUEST_DISCONNECT) {
+            printf("Receive disconnect request from, client at %s:%hu\n", source_addr.ipAddr, source_addr.portNum);
+            printf("First, unsubscribing client from all streams!\n");
+            unsub_all(search_consumers_ip(source_addr.ipAddr, connected_consumers));
+            printf("Second, removing client from connect list!\n");
+            remove_client(search_consumers_ip(source_addr.ipAddr, connected_consumers));
+            printf("Sending disconnect confirmation!\n");
+            buffer[0] = CONTROL_CONS_DISCONNECT;
+            length = 4;
+        } else if (buffer[0] == CONTROL_PROD_REQUEST_DISCONNECT) {
+            printf("Receive disconnect request from, producer at %s:%hu\n", source_addr.ipAddr, source_addr.portNum);
+            printf("First, stopping all producer streams!\n");
+            stop_all(search_producer_ip(source_addr.ipAddr, connected_producers));
+            printf("Second, removing producer from connect list!\n");
+            dest_addr = source_addr;
+            removeProducer(connected_producers, getProducerPosition(connected_producers,
+                                                                    search_producer_ip(source_addr.ipAddr,
+                                                                                       connected_producers)));
+
+            printf("Sending disconnect confirmation!\n");
+            buffer[0] = CONTROL_PROD_DISCONNECT;
+            length = 4;
+
+        } else if ((buffer[0] & TYPE_MASK) == CONTROL_REQ_LIST_STREAM) {
+            printf("Receive request list of streams request\n");
+            length = send_list_stream(buffer, connected_producers);
+            printf("Sending back list of size: %d\n", *(int *) &buffer[1]);
+            dest_addr = source_addr;
+        } else if ((buffer[0] & TYPE_MASK) == CONTROL_REQ_SUBSCRIBE) {
+            printf("Recieve subscribe request from, client at %s:%hu\n", source_addr.ipAddr, source_addr.portNum);
+            length = recv_req_stream_subscribe(buffer, search_consumers_ip(source_addr.ipAddr, connected_consumers),
+                                               connected_producers);
+        } else if ((buffer[0] & TYPE_MASK) == CONTROL_REQ_UNSUBSCRIBE) {
+            printf("Recieve unsubscribe request from, client at %s:%hu\n", source_addr.ipAddr, source_addr.portNum);
+            length = recv_req_stream_unsubscribe(buffer, search_consumers_ip(source_addr.ipAddr, connected_consumers),
+                                                 connected_producers);
+        } else if (ERROR) {
+            printf("RECEIVED ERROR PACKET!\n");
+        }
     }
 
 

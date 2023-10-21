@@ -9,6 +9,8 @@
 #include <sys/socket.h>
 #include <sys/time.h>
 
+#include "producer_structs.h"
+#include "stream_handler.c"
 #include "bmp_utils.c"
 #include "txt_utils.c"
 #include "producer_protocol.c"
@@ -26,6 +28,13 @@
 
 
 #define MAX_BUFFER_SIZE 66000  // Maximum buffer size for incoming messages
+#define MAX_DATA_SIZE 50000  // Maximum buffer size for incoming messages
+
+
+
+
+
+
 char * BROKER_IP_ADDRESS = "172.22.0.2";
 const int DESTINATION_PORT = 50000;
 
@@ -35,37 +44,18 @@ unsigned char streamType = 0;
 int connected = 0;
 
 
-struct timeval  startA, endA;
-struct timeval  startV, endV;
-struct timeval  startT, endT;
-
-
-double aRate;
-double vRate;
-double tRate;
-
-int aFrame;
-int vFrame;
-int tFrame;
-
-int vWidth;
-int vHeight;
-char * vPath;
-int fps;
 
 const int vBatchSize = 6;
-unsigned char * decodedFrameBuf[6];
-int currentFrame = 0;
-int codec_opened = 0;
+
+
 
 
 unsigned char myID[3];
 
-unsigned char * textBuffer;
-int textFrame;
-char * tPath;
+struct stream_list * myStreams;
 
-char * aPath;
+
+
 
 int dirExists(char * directoryPath) {
 
@@ -196,6 +186,54 @@ char** splitString(char *input, int *count) {
     return tokens;
 }
 
+struct stream * create_stream(char * streamNum, char * streamTypes, char * fileName){
+    struct stream * newStream = malloc(sizeof(struct stream));
+    newStream->streaming = 0;
+    memcpy(newStream->streamID, myID, 3);
+    hexStringToBytes(streamNum, &newStream->streamID[3]);
+    snprintf(newStream->name, 9, "%02x%02x%02x%02x", newStream->streamID[0],newStream->streamID[1],newStream->streamID[2],newStream->streamID[3]);
+    newStream->target = strdup(fileName);
+    for (int i = 0; i < strlen(streamTypes); i++) {
+        if (streamTypes[i] == 't'){newStream->type = newStream->type | TEXT_BIT;}
+        if (streamTypes[i] == 'v'){newStream->type = newStream->type | VIDEO_BIT;}
+        if (streamTypes[i] == 'a'){newStream->type = newStream->type | AUDIO_BIT;}
+    }
+    printf("Stream target set at %s\n", stream_target);
+    if (newStream->type & VIDEO_BIT) {
+        newStream->vPath = malloc(128);
+        newStream->vPath[0] = 0;
+        strcat(newStream->vPath, newStream->target);
+        strcat(newStream->vPath, "/video.mp4");
+        getDetails(newStream->vPath, &newStream->fps, &newStream->vWidth, &newStream->vHeight);
+        newStream->vRate = 1.0 / (double) newStream->fps;
+        newStream->vFrame = 0;
+        printf("Video width: %d\n", newStream->vWidth);
+        printf("Video height: %d\n", newStream->vHeight);
+        printf("Video fps: %d\n", newStream->fps);
+        printf("vRate: %lf\n", newStream->vRate);
+        printf("vpath: %s\n", newStream->vPath);
+    }
+
+    if (newStream->type & TEXT_BIT){
+        newStream->textBuffer = malloc(2048);
+        memset(newStream->textBuffer,0,2048);
+        newStream->tPath = malloc(128);
+        newStream->tPath[0] = 0;
+        strcat(newStream->tPath, newStream->target);
+        strcat(newStream->tPath, "/text.txt");
+    }
+
+    if (newStream->type & TEXT_BIT){
+        newStream->aPath = malloc(128);
+        newStream->aPath[0] = 0;
+        strcat(newStream->aPath, newStream->target);
+        strcat(newStream->aPath, "/audio.mp3");
+        newStream->aFrame = 0;
+    }
+
+    return newStream;
+}
+
 void handle_packet(unsigned char * buffer){
     if (buffer[0] == ERROR){
         printf("ERROR PACKET RECEIVED, ERROR CODE %d\n", (int) buffer[1]);
@@ -205,50 +243,59 @@ void handle_packet(unsigned char * buffer){
         connected = 1;
     }else if (buffer[0] == CONTROL_STREAM_UPDATE) {
         printf("Recieved stream deletion confirmation!\n");
-        streaming = 0;
-        vFrame = 0;
-        currentFrame = 0;
-        if (streamType & AUDIO_BIT){
+        struct stream * strm = search_stream_id(&buffer[1], myStreams);
+        int index = getStreamPosition(myStreams, strm);
+        strm->streaming = 0;
+        strm->vFrame = 0;
+        strm->currentFrame = 0;
+        if (strm->type & AUDIO_BIT){
             close_mp3();
         }
-        if (streamType & VIDEO_BIT){
+        if (strm->type & VIDEO_BIT){
             close_mp4();
-            codec_opened = 0;
+            strm->codec_opened = 0;
         }
-        if (streamType & TEXT_BIT){
-            textFrame = 0;
+        if (strm->type & TEXT_BIT){
+            strm->textFrame = 0;
         }
         streamType = 0;
     } else if ((buffer[0] & TYPE_MASK) == CONTROL_STREAM_UPDATE){
         printf("Received stream creation/validation from broker!\n");
         if (access(stream_target, F_OK) != -1) {
             printf("streaming content from %s.\n", stream_target);
-            if (streamType & VIDEO_BIT){
+            struct stream * strm = search_stream_id(&buffer[1], myStreams);
+            if (strm == NULL) {printf("ERROR STREAM NOT FOUND!\n");}
+            strm->streaming = 1;
+            if (strm->type & VIDEO_BIT){
                 printf("streaming video.mp4 content\n");
-                streaming = 1;
-                vFrame = 0;
-                currentFrame = 0;
-                gettimeofday(&startV, NULL);
+                strm->streaming = 1;
+                strm->vFrame = 0;
+                strm->currentFrame = 0;
+                gettimeofday(&strm->startV, NULL);
             }
-            if (streamType & TEXT_BIT){
+            if (strm->type & TEXT_BIT){
                 printf("streaming text.txt content\n");
-                streaming = 1;
-                gettimeofday(&startT, NULL);
-                readLineFromFile(tPath, textFrame, textBuffer, 2048);
-                endT = addTime(textBuffer);
-                textBuffer = &textBuffer[5];
-                printf("start time: %lf\n",(double)(startT.tv_sec) + (double)(startT.tv_usec) / 1000000.0);
-                printf("end time: %lf\n",(double)(endT.tv_sec) + (double)(endT.tv_usec) / 1000000.0);
+                strm->streaming = 1;
+                gettimeofday(&strm->startT, NULL);
+                strm->textFrame = 0;
+                readLineFromFile(strm->tPath, strm->textFrame, strm->textBuffer, 2048);
+                strm->endT = addTime(strm->textBuffer);
+                strm->textBuffer = &strm->textBuffer[6];
+                printf("start time: %lf\n",(double)(strm->startT.tv_sec) + (double)(strm->startT.tv_usec) / 1000000.0);
+                printf("end time: %lf\n",(double)(strm->endT.tv_sec) + (double)(strm->endT.tv_usec) / 1000000.0);
 
             }
-            if (streamType & AUDIO_BIT){
-                streaming = 1;
-                printf("streaming audio.mp3 content\n");
-                open_mp3(aPath);
-                gettimeofday(&startA, NULL);
-                endA.tv_sec = 0;
-                endA.tv_usec = 0;
-                aFrame = 0;
+            if (strm->type & AUDIO_BIT){
+                strm->streaming = 1;
+                strm->aPath[0] = 0;
+                strcat(strm->aPath, stream_target);
+                strcat(strm->aPath, "/audio.mp3");
+                printf("streaming %s content\n", strm->aPath);
+                open_mp3(strm->aPath);
+                gettimeofday(&strm->startA, NULL);
+                strm->endA.tv_sec = 0;
+                strm->endA.tv_usec = 0;
+                strm->aFrame = 0;
             }
             if (streamType == 0){printf("No type! Stopping stream!");streaming = 0;}
         } else {
@@ -256,22 +303,24 @@ void handle_packet(unsigned char * buffer){
             streaming = 0;
         }
     } else if  (buffer[0] == CONTROL_PROD_DISCONNECT){
-        printf("Recieved succeful disconnect!\n");
-        streaming = 0;
-        vFrame = 0;
-        currentFrame = 0;
-        connected = 0;
-        if (streamType & AUDIO_BIT){
-            close_mp3();
+        printf("Received successful disconnect!\n");
+        int sSize = myStreams->size;
+        for (int i = 0; i < sSize; ++i) {
+            struct stream * strm = getStream(myStreams, 0);
+            if (strm->type & AUDIO_BIT){
+                close_mp3();
+            }
+            if (strm->type & VIDEO_BIT){
+                close_mp4();
+                strm->codec_opened = 0;
+            }
+            if (strm->type & TEXT_BIT){
+                free(strm->textBuffer);
+            }
         }
-        if (streamType & VIDEO_BIT){
-            close_mp4();
-            codec_opened = 0;
-        }
-        if (streamType & TEXT_BIT){
-            textFrame = 0;
-        }
-        streamType = 0;
+        freeStreamList(myStreams);
+        myStreams->head = NULL;
+        myStreams->size = 0;
         memset(myID, 0, 3);
     }
 }
@@ -285,24 +334,10 @@ void measure_print_time(struct timeval a, struct timeval b, char * message){
 int main() {
     printf("Server Container now running!\n");
 
-    aRate = 0;
-    vRate = 0;
-    tRate = 0;
+    myStreams = malloc(sizeof(struct stream_list));
+    myStreams->head = NULL;
+    myStreams->size = 0;
 
-    aFrame = 0;
-    vFrame = 0;
-    tFrame = 0;
-
-    vWidth = 0;
-    vHeight = 0;
-    vPath = malloc(1024);
-    tPath = malloc(1024);
-    aPath = malloc(1024);
-    fps = 0;
-
-    decodedFrameBuf[vBatchSize];
-    textBuffer = malloc(2048);
-    memset(textBuffer,0,2048);
     int localSocket = create_listening_socket();
 
     struct sockaddr_in brokerAddr = create_destination_socket(BROKER_IP_ADDRESS, DESTINATION_PORT);
@@ -339,85 +374,98 @@ int main() {
             perror("select");
             exit(EXIT_FAILURE);
         } else if (ready_fds == 0) {
-            if (streaming){
-                gettimeofday(&endV, NULL);
-                double elapsedTime  = (double)(endV.tv_sec - startV.tv_sec) + (double)(endV.tv_usec - startV.tv_usec) / 1000000.0;
-                if (elapsedTime > vRate && (streamType & VIDEO_BIT)){
-                    gettimeofday(&startV, NULL);
-                    if (codec_opened == 0){
-                        open_input(vPath, decodedFrameBuf, vWidth, vHeight);
-                        codec_opened = 1;
-                        currentFrame = vBatchSize;
-                    }
-
-                    if (currentFrame == vBatchSize){
-                        currentFrame = 0;
-                        int rc = decode_frames(vBatchSize, decodedFrameBuf);
-                        if (rc == -1){vFrame = 0; decode_frames(vBatchSize, decodedFrameBuf);}
-                    }
-
-                    int Jsize = 0;
-                    char fName[50];
-                    //snprintf(fName, sizeof(fName), "frame_%d.bmp", vFrame);
-                    //createBMP(fName, decodedFrameBuf[currentFrame], vWidth, vHeight);
-                    convert_to_jpeg(decodedFrameBuf[currentFrame], vWidth, vHeight, &message[8], &Jsize, 65000);
-                    vFrame++;
-                    short vidWidth = vWidth;
-                    short vidHeight = vHeight;
-                    int packetSize = (65000)+8;
-                    int vDataSize = packetSize-8;
-                    message[0] = DATA_VIDEO_FRAME;
-                    unsigned int totalSize = Jsize;
-                    int parts = (totalSize/vDataSize)+1;
-                    memcpy(&message[1], myID, 3);
-                    unsigned int part = 0;
-                    for (int i = 0; i < parts; ++i) {
-                        part = (parts-1)-i;
-                        memcpy(&message[4], &part, 4);
-                        int length = 0;
-                        if (totalSize<vDataSize) {
-                            memcpy(&message[8], &message[8 + (vDataSize * i)], totalSize);
-                            length = 8 + totalSize;
-                        } else {
-                            memcpy(&message[8], &message[8 + (vDataSize * i)], vDataSize);
-                            length = 8 + vDataSize;
+            for (int i = 0; i < myStreams->size; ++i) {
+                struct stream * strm = getStream(myStreams, i);
+                if (strm->streaming) {
+                    gettimeofday(&strm->endV, NULL);
+                    double elapsedTime = (double) (strm->endV.tv_sec - strm->startV.tv_sec) +
+                                         (double) (strm->endV.tv_usec - strm->startV.tv_usec) / 1000000.0;
+                    if (elapsedTime > strm->vRate && (strm->type & VIDEO_BIT)) {
+                        gettimeofday(&strm->startV, NULL);
+                        if (strm->codec_opened == 0) {
+                            open_input(strm->vPath, strm->decodedFrameBuf, strm->vWidth, strm->vHeight);
+                            strm->codec_opened = 1;
+                            strm->currentFrame = vBatchSize;
                         }
-                        totalSize -= (length-8);
-                        send_UDP_datagram(localSocket, message, length, brokerAddr);
+
+                        if (strm->currentFrame == vBatchSize) {
+                            strm->currentFrame = 0;
+                            int rc = decode_frames(vBatchSize, strm->decodedFrameBuf);
+                            if (rc == -1) {
+                                strm->vFrame = 0;
+                                decode_frames(vBatchSize, strm->decodedFrameBuf);
+                            }
+                        }
+
+                        int Jsize = 0;
+                        //char fName[50];
+                        //snprintf(fName, sizeof(fName), "frame_%d.bmp", vFrame);
+                        //createBMP(fName, decodedFrameBuf[currentFrame], vWidth, vHeight);
+                        convert_to_jpeg(strm->decodedFrameBuf[strm->currentFrame], strm->vWidth, strm->vHeight, &message[9], &Jsize,
+                                        MAX_DATA_SIZE / 2);
+                        strm->vFrame++;
+                        short vidWidth = strm->vWidth;
+                        short vidHeight = strm->vHeight;
+                        int packetSize = (MAX_DATA_SIZE / 2) + 9;
+                        int vDataSize = packetSize - 9;
+                        message[0] = DATA_VIDEO_FRAME;
+                        unsigned int totalSize = Jsize;
+                        int parts = (totalSize / vDataSize) + 1;
+                        memcpy(&message[1], strm->streamID, 4);
+                        unsigned int part = 0;
+                        for (int i = 0; i < parts; ++i) {
+                            part = (parts - 1) - i;
+                            memcpy(&message[5], &part, 4);
+                            int length = 0;
+                            if (totalSize < vDataSize) {
+                                memcpy(&message[9], &message[9 + (vDataSize * i)], totalSize);
+                                length = 9 + totalSize;
+                            } else {
+                                memcpy(&message[9], &message[9 + (vDataSize * i)], vDataSize);
+                                length = 9 + vDataSize;
+                            }
+                            totalSize -= (length - 9);
+                            send_UDP_datagram(localSocket, message, length, brokerAddr);
+                        }
+                        strm->currentFrame++;
+                        memset(message, 0, Jsize);
                     }
-                    currentFrame++;
-                    memset(message, 0, Jsize);
-                }
-                struct timeval currentTime;
-                gettimeofday(&currentTime, NULL);
-                elapsedTime  = (double)(endT.tv_sec - currentTime.tv_sec) + (double)(endT.tv_usec - currentTime.tv_usec) / 1000000.0;
-                if (elapsedTime < 0 && (streamType & TEXT_BIT)) {
-                    textFrame+=1;
-                    if (textFrame == 20) {textFrame = 0;}
-                    readLineFromFile(tPath, textFrame, textBuffer, 2048);
-                    endT = addTime(textBuffer);
-                    textBuffer = &textBuffer[6]; //Remmove the [X:Y]
-                    message[0] = DATA_TEXT_FRAME;
-                    memcpy(&message[1], myID, 3);
-                    memcpy(&message[4], textBuffer, strlen(textBuffer)+1);
-                    int length = 4 + strlen(textBuffer)+1;
-                    send_UDP_datagram(localSocket, message, length, brokerAddr);
-                    memset(message, 0, MAX_BUFFER_SIZE);
-                }
-                elapsedTime  = (double)(currentTime.tv_sec - startA.tv_sec) + (double)(currentTime.tv_usec - startA.tv_usec) / 1000000.0;
-                //printf("%lf > %lf\n", elapsedTime, ((double)endA.tv_sec + ( (double)endA.tv_usec /1000000.0)));
-                if (elapsedTime > ((double)endA.tv_sec + ( (double)endA.tv_usec /1000000.0)) && (streamType & AUDIO_BIT)) {
-                    printf("Time elsapse, sending audio!\n");
-                    gettimeofday(&startA, NULL);
-                    message[0] = DATA_AUDIO_FRAME;
-                    memcpy(&message[1], myID, 3);
-                    memcpy(&message[4], (&aFrame)+2,2);
-                    int length = 0;
-                    mp3_read_chunk(&message[6], &endA, &length);
-                    send_UDP_datagram(localSocket, message, length, brokerAddr);
-                    memset(message, 0, MAX_BUFFER_SIZE);
-                    //printf("startA: %lf\n", (double)(startA.tv_sec + ((double)startA.tv_usec/1000000.0)));
-                    //printf("endA: %lf\n", (double)(endA.tv_sec + ((double)endA.tv_usec/1000000.0)));
+                    struct timeval currentTime;
+                    gettimeofday(&currentTime, NULL);
+                    elapsedTime = (double) (strm->endT.tv_sec - currentTime.tv_sec) +
+                                  (double) (strm->endT.tv_usec - currentTime.tv_usec) / 1000000.0;
+                    if (elapsedTime < 0 && (strm->type & TEXT_BIT)) {
+                        strm->textFrame += 1;
+                        if (strm->textFrame == 20) { strm->textFrame = 0; }
+                        readLineFromFile(strm->tPath, strm->textFrame, strm->textBuffer, 2048);
+                        strm->endT = addTime(strm->textBuffer);
+                        strm->textBuffer = &strm->textBuffer[6]; //Remmove the [X:Y]
+                        message[0] = DATA_TEXT_FRAME;
+                        memcpy(&message[1], strm->streamID, 4);
+                        memcpy(&message[5], strm->textBuffer, strlen(strm->textBuffer) + 1);
+                        int length = 5 + strlen(strm->textBuffer) + 1;
+                        send_UDP_datagram(localSocket, message, length, brokerAddr);
+                        memset(message, 0, MAX_BUFFER_SIZE);
+                    }
+                    elapsedTime = (double) (currentTime.tv_sec - strm->startA.tv_sec) +
+                                  (double) (currentTime.tv_usec - strm->startA.tv_usec) / 1000000.0;
+                    //printf("%lf > %lf\n", elapsedTime, ((double)endA.tv_sec + ( (double)endA.tv_usec /1000000.0)));
+                    if (elapsedTime > ((double) strm->endA.tv_sec + ((double) strm->endA.tv_usec / 1000000.0)) &&
+                        (strm->type & AUDIO_BIT)) {
+                        gettimeofday(&strm->startA, NULL);
+                        message[0] = DATA_AUDIO_FRAME;
+                        memcpy(&message[1], strm->streamID, 4);
+                        memcpy(&message[5], (&strm->aFrame) + 2, 2);
+                        int length = 0;
+                        if (mp3_read_chunk(&message[7], &strm->endA, &length) == -1) {
+                            reset_mp3_reader();
+                            mp3_read_chunk(&message[7], &strm->endA, &length);
+                        }
+                        send_UDP_datagram(localSocket, message, length, brokerAddr);
+                        memset(message, 0, MAX_BUFFER_SIZE);
+                        //printf("startA: %lf\n", (double)(startA.tv_sec + ((double)startA.tv_usec/1000000.0)));
+                        //printf("endA: %lf\n", (double)(endA.tv_sec + ((double)endA.tv_usec/1000000.0)));
+                    }
                 }
             }
         }
@@ -438,45 +486,25 @@ int main() {
                         length = send_prod_request_connect(message, input_array[1]);
                     }
                 } else if (strcmp(input_array[0], "stream") == 0) {
-                    if (input_count < 2) { printf("Error no types specified!\n"); }
+                    if (input_count < 3) { printf("Error no types or stream num specified!\n"); }
                     else {
-                        printf("requesting start stream of type %s\n", input_array[1]);
-                        memcpy(&message[1], myID, 3);
-                        length = send_request_stream_creation(message, input_array[1]);
-                        streamType = message[0] & (~TYPE_MASK);
-                        if (streamType & VIDEO_BIT) {
-                            getDetails(vPath, &fps, &vWidth, &vHeight);
-                            vRate = 1.0 / (double) fps;
-                            vFrame = 0;
-                            printf("Video width: %d\n", vWidth);
-                            printf("Video height: %d\n", vHeight);
-                            printf("Video fps: %d\n", fps);
-                            printf("vRate: %lf\n", vRate);
-
-                            printf("vpath: %s\n", vPath);
+                        printf("requesting start stream %d, of type %s\n", atoi(input_array[1]), input_array[2]);
+                        struct stream * newStream = create_stream(input_array[1], input_array[2], stream_target);
+                        printf("Stream entry created!\n");
+                        appendStream(myStreams, newStream);
+                        length = send_request_stream_creation(message, newStream);
+                        if (newStream->type & VIDEO_BIT) {
+                            length = add_video_details(message, length, newStream->vWidth, newStream->vHeight);
                         }
-                        printf("streamType: %02x\n", streamType);
-                    }
-                    if ((message[0] & (~TYPE_MASK)) & VIDEO_BIT) {
-                        length = add_video_details(message, length, vWidth, vHeight);
                     }
                 } else if (strcmp(input_array[0], "target") == 0) {
                     if (input_count < 2) { printf("Error no target specified!\n"); }
                     else if (dirExists(input_array[1]) == -1) { printf("target does not exist!\n"); }
                     else {
-                        stream_target = input_array[1];
 
-                        printf("Stream target set at %s\n", stream_target);
-                        vPath[0] = 0;
-                        strcat(vPath, stream_target);
-                        strcat(vPath, "/video.mp4");
-                        tPath[0] = 0;
-                        strcat(tPath, stream_target);
-                        strcat(tPath, "/text.txt");
-                        aPath[0] = 0;
-                        strcat(aPath, stream_target);
-                        strcat(aPath, "/audio.mp3");
+                        stream_target = input_array[1];
                         length = 0;
+                        printf("Target set as %s\n", stream_target);
                     }
                 } else if(strcmp(input_array[0], "delete") == 0) {
                     length = send_request_stream_deletion(message);

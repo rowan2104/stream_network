@@ -16,10 +16,28 @@ unsigned char hexCharToByte(char hexChar) {
 }
 
 void hexStringToBytes(const char* hexString, unsigned char* bytes) {
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < strlen(hexString); i++) {
         bytes[i] = (hexCharToByte(hexString[i * 2]) << 4) | hexCharToByte(hexString[i * 2 + 1]);
     }
 }
+
+struct stream * search_stream_id(unsigned char newID[4], struct stream_list * streamList){
+    int i = 0;
+    int y = (newID[0] << 0) | (newID[1] << 8) | (newID[2] << 16) |  (newID[3] << 24);
+    struct stream * temp;
+    while (getStream(streamList, i) != NULL){
+        temp = getStream(streamList, i);
+        int x = (temp->streamID[0] << 0) | (temp->streamID[1] << 8) | (temp->streamID[2] << 16) | (temp->streamID[3] << 24);
+        if (x == y){
+            return temp;
+        }
+        i++;
+    }
+    return NULL;
+}
+
+
+
 
 int send_prod_request_connect(unsigned char * buf, char id[6]){
     buf[0] = CONTROL_PROD_REQUEST_CONNECT;
@@ -28,14 +46,12 @@ int send_prod_request_connect(unsigned char * buf, char id[6]){
     return length;
 }
 
-int send_request_stream_creation(unsigned char * buf, char * type){
+int send_request_stream_creation(unsigned char * buf, struct stream * newStream){
     buf[0] = CONTROL_REQUEST_STREAM_UPDATE;
-    for (int i = 0; i < strlen(type); i++) {
-        if (type[i] == 't'){buf[0] = buf[0] | TEXT_BIT;}
-        if (type[i] == 'v'){buf[0] = buf[0] | VIDEO_BIT;}
-        if (type[i] == 'a'){buf[0] = buf[0] | AUDIO_BIT;}
-    }
-    int length = 4;
+    buf[0] = buf[0] | newStream->type;
+    memcpy(&buf[1], newStream->streamID, 4);
+    int length = 5;
+    printf("packet header: %02x%02x%02x%02x%02x\n",buf[0],buf[1],buf[2],buf[3],buf[4]);
     return length;
 }
 

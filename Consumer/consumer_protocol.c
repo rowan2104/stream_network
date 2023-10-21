@@ -14,7 +14,7 @@ unsigned char hexCharToByte(char hexChar) {
 }
 
 void hexStringToBytes(const char* hexString, unsigned char* bytes) {
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 4; i++) {
         bytes[i] = (hexCharToByte(hexString[i * 2]) << 4) | hexCharToByte(hexString[i * 2 + 1]);
     }
 }

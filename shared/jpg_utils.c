@@ -21,7 +21,7 @@ void convert_to_jpeg(char* inputImage, int width, int height, unsigned char* out
     cinfo.input_components = 3;
     cinfo.in_color_space = JCS_RGB;
 
-    int current_quality = 90;  // Starting quality
+    int current_quality = 100;  // Starting quality
 
     while (current_quality >= 10) {
         jpeg_set_defaults(&cinfo);
@@ -40,19 +40,19 @@ void convert_to_jpeg(char* inputImage, int width, int height, unsigned char* out
         }
         free(jpeg_data);
         // If the size is above the threshold, decrease quality by 10
-        current_quality -= 10;
+        if (current_quality == 1){
+            printf("ERROR JPEG QUALITY HAS HIT 0, CANNOT COMPRESS!\n");
+            return;
+        }
+        current_quality -= 20;
+        if (current_quality == 0){
+            current_quality = 1;
+        }
         jpeg_size = 0;  // Reset the size for the next iteration
         jpeg_mem_dest(&cinfo, &jpeg_data, &jpeg_size);  // Reset memory destination
     }
 
     jpeg_destroy_compress(&cinfo);
-
-    if (current_quality < 10) {
-        fprintf(stderr, "Error: JPEG quality reached 10, but the size is still above the threshold.\n");
-        printf("Error: JPEG quality reached 10, but the size is still above the threshold.\n");
-        free(jpeg_data);
-        exit(1);
-    }
 
     // Copy the JPEG data to the output buffer
     *size = jpeg_size;

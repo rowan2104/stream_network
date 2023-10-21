@@ -164,7 +164,21 @@ void update_window(){
 
 
 void handle_packet(unsigned char * buffer, unsigned int packetLength) {
-    if (buffer[0] == ERROR) {
+
+    if (buffer[0] == DATA_VIDEO_FRAME){
+        if (display_Window == 1) {
+            decode_jpeg(&buffer[9], frameBuffer, packetLength - 9);
+            update_window();
+        }
+    } else if (buffer[0] == DATA_TEXT_FRAME){
+        printf("%02x%02x%02x: %s\n", buffer[1], buffer[2], buffer[3], &buffer[4]);
+    } else if (buffer[0] == DATA_AUDIO_FRAME){
+        char outputFileName[100];
+        printf("Recieved audio from %02x%02x%02x: saving as %02x%02x%02x_%d.mp3\n", buffer[1], buffer[2], buffer[3],buffer[1],buffer[2],buffer[3],audio_num);
+        snprintf(outputFileName, sizeof(outputFileName), " %02x%02x%02x_%d.mp3",  buffer[1], buffer[2], buffer[3],audio_num);
+        save_mp3(outputFileName, &buffer[6], packetLength - 6);
+        audio_num+=1;
+    } else if (buffer[0] == ERROR) {
         printf("ERROR PACKET RECEIVED, ERROR CODE %d\n", (int) buffer[1]);
     } else if (buffer[0] == CONTROL_CONS_CONNECT) {
         printf("Received Connection confirmed from broker!\n");
@@ -233,24 +247,12 @@ void handle_packet(unsigned char * buffer, unsigned int packetLength) {
             close_window();
         }
         connected = 0;
-    } else if (buffer[0] == DATA_STREAM_DELETED){
+    } else if (buffer[0] == DATA_STREAM_DELETED) {
         printf("Received stream deletion from %02x%02x%02x\n", buffer[1], buffer[2], buffer[3]);
         memset(subscribed, 0, 4);
         if (display_Window == 1) {
             close_window();
         }
-    }else if (buffer[0] == DATA_VIDEO_FRAME){
-        if (display_Window == 1) {
-            decode_jpeg(&buffer[8], frameBuffer, packetLength - 8);
-            update_window();
-        }
-    } else if (buffer[0] == DATA_TEXT_FRAME){
-        printf("%s\n", &buffer[4]);
-    } else if (buffer[0] == DATA_AUDIO_FRAME){
-        char outputFileName[100];
-        snprintf(outputFileName, sizeof(outputFileName), "audio_%d.mp3", audio_num);
-        save_mp3(outputFileName, &buffer[6], packetLength - 6);
-        audio_num+=1;
     }
 }
 

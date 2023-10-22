@@ -9,6 +9,8 @@
 #include <sys/socket.h>
 #include <sys/time.h>
 
+#include "mp4_utils.c"
+#include "mp3_utils.c"
 #include "producer_structs.h"
 #include "stream_handler.c"
 #include "bmp_utils.c"
@@ -18,9 +20,7 @@
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 #include <libavutil/imgutils.h>
-#include "mp4_utils.c"
 #include "jpg_utils.c"
-#include "mp3_utils.c"
 #include "mem_tool.c"
 #include <sys/stat.h>
 
@@ -204,8 +204,14 @@ struct stream * create_stream(char * streamNum, char * streamTypes, char * fileN
         newStream->vPath[0] = 0;
         strcat(newStream->vPath, newStream->target);
         strcat(newStream->vPath, "/video.mp4");
-        getDetails(newStream->vPath, &newStream->fps, &newStream->vWidth, &newStream->vHeight);
-        newStream->vRate = 1.0 / (double) newStream->fps;
+        newStream->mp4file = malloc(sizeof(MP4File));
+        open_input(newStream->mp4file, newStream->vPath, newStream->decodedFrameBuf);
+        newStream->vWidth = newStream->mp4file->width;
+        newStream->vHeight = newStream->mp4file->height;
+        newStream->fps = newStream->mp4file->fps;
+        newStream->codec_opened = 1;
+        newStream->currentFrame = vBatchSize;
+        newStream->vRate = (1.0 / (double) (newStream->fps));
         newStream->vFrame = 0;
         printf("Video width: %d\n", newStream->vWidth);
         printf("Video height: %d\n", newStream->vHeight);
@@ -223,7 +229,9 @@ struct stream * create_stream(char * streamNum, char * streamTypes, char * fileN
         strcat(newStream->tPath, "/text.txt");
     }
 
-    if (newStream->type & TEXT_BIT){
+    if (newStream->type & AUDIO_BIT){
+        MP3File * newmp3 = malloc(sizeof(MP3File));
+        newStream->mp3file = newmp3;
         newStream->aPath = malloc(128);
         newStream->aPath[0] = 0;
         strcat(newStream->aPath, newStream->target);
@@ -249,10 +257,10 @@ void handle_packet(unsigned char * buffer){
         strm->vFrame = 0;
         strm->currentFrame = 0;
         if (strm->type & AUDIO_BIT){
-            close_mp3();
+            close_mp3(strm->mp3file);
         }
         if (strm->type & VIDEO_BIT){
-            close_mp4();
+            close_mp4(strm->mp4file);
             strm->codec_opened = 0;
         }
         if (strm->type & TEXT_BIT){
@@ -291,13 +299,13 @@ void handle_packet(unsigned char * buffer){
                 strcat(strm->aPath, stream_target);
                 strcat(strm->aPath, "/audio.mp3");
                 printf("streaming %s content\n", strm->aPath);
-                open_mp3(strm->aPath);
+                open_mp3(strm->mp3file, strm->aPath);
                 gettimeofday(&strm->startA, NULL);
                 strm->endA.tv_sec = 0;
                 strm->endA.tv_usec = 0;
                 strm->aFrame = 0;
             }
-            if (streamType == 0){printf("No type! Stopping stream!");streaming = 0;}
+            if (strm->type == 0){printf("No type! Stopping stream!\n");streaming = 0;}
         } else {
             printf("%s does not exist in the current directory.\n", stream_target);
             streaming = 0;
@@ -308,10 +316,10 @@ void handle_packet(unsigned char * buffer){
         for (int i = 0; i < sSize; ++i) {
             struct stream * strm = getStream(myStreams, 0);
             if (strm->type & AUDIO_BIT){
-                close_mp3();
+                close_mp3(strm->mp3file);
             }
             if (strm->type & VIDEO_BIT){
-                close_mp4();
+                close_mp4(strm->mp4file);
                 strm->codec_opened = 0;
             }
             if (strm->type & TEXT_BIT){
@@ -383,20 +391,21 @@ int main() {
                     if (elapsedTime > strm->vRate && (strm->type & VIDEO_BIT)) {
                         gettimeofday(&strm->startV, NULL);
                         if (strm->codec_opened == 0) {
-                            open_input(strm->vPath, strm->decodedFrameBuf, strm->vWidth, strm->vHeight);
+                            open_input(strm->mp4file, strm->vPath, strm->decodedFrameBuf);
+                            strm->vWidth = strm->mp4file->width;
+                            strm->vHeight = strm->mp4file->height;
+                            strm->fps = strm->mp4file->fps;
                             strm->codec_opened = 1;
                             strm->currentFrame = vBatchSize;
                         }
-
                         if (strm->currentFrame == vBatchSize) {
                             strm->currentFrame = 0;
-                            int rc = decode_frames(vBatchSize, strm->decodedFrameBuf);
+                            int rc = decode_frames(strm->mp4file, vBatchSize, strm->decodedFrameBuf);
                             if (rc == -1) {
-                                strm->vFrame = 0;
-                                decode_frames(vBatchSize, strm->decodedFrameBuf);
+                                printf("Reached end of video file, resetting!");
+                                decode_frames(strm->mp4file, vBatchSize, strm->decodedFrameBuf);
                             }
                         }
-
                         int Jsize = 0;
                         //char fName[50];
                         //snprintf(fName, sizeof(fName), "frame_%d.bmp", vFrame);
@@ -412,23 +421,21 @@ int main() {
                         unsigned int totalSize = Jsize;
                         int parts = (totalSize / vDataSize) + 1;
                         memcpy(&message[1], strm->streamID, 4);
-                        unsigned int part = 0;
-                        for (int i = 0; i < parts; ++i) {
-                            part = (parts - 1) - i;
-                            memcpy(&message[5], &part, 4);
-                            int length = 0;
-                            if (totalSize < vDataSize) {
-                                memcpy(&message[9], &message[9 + (vDataSize * i)], totalSize);
-                                length = 9 + totalSize;
-                            } else {
-                                memcpy(&message[9], &message[9 + (vDataSize * i)], vDataSize);
-                                length = 9 + vDataSize;
-                            }
-                            totalSize -= (length - 9);
-                            send_UDP_datagram(localSocket, message, length, brokerAddr);
+
+                        memcpy(&message[5], &strm->vFrame, 4);
+                        int length = 0;
+                        if (totalSize < vDataSize) {
+                            memcpy(&message[9], &message[9 + (vDataSize * i)], totalSize);
+                            length = 9 + totalSize;
+                        } else {
+                            memcpy(&message[9], &message[9 + (vDataSize * i)], vDataSize);
+                            length = 9 + vDataSize;
                         }
+                        send_UDP_datagram(localSocket, message, length, brokerAddr);
+
                         strm->currentFrame++;
                         memset(message, 0, Jsize);
+
                     }
                     struct timeval currentTime;
                     gettimeofday(&currentTime, NULL);
@@ -436,7 +443,6 @@ int main() {
                                   (double) (strm->endT.tv_usec - currentTime.tv_usec) / 1000000.0;
                     if (elapsedTime < 0 && (strm->type & TEXT_BIT)) {
                         strm->textFrame += 1;
-                        if (strm->textFrame == 20) { strm->textFrame = 0; }
                         readLineFromFile(strm->tPath, strm->textFrame, strm->textBuffer, 2048);
                         strm->endT = addTime(strm->textBuffer);
                         strm->textBuffer = &strm->textBuffer[6]; //Remmove the [X:Y]
@@ -455,14 +461,16 @@ int main() {
                         gettimeofday(&strm->startA, NULL);
                         message[0] = DATA_AUDIO_FRAME;
                         memcpy(&message[1], strm->streamID, 4);
-                        memcpy(&message[5], (&strm->aFrame) + 2, 2);
+                        memcpy(&message[5], (&strm->aFrame), 4);
                         int length = 0;
-                        if (mp3_read_chunk(&message[7], &strm->endA, &length) == -1) {
-                            reset_mp3_reader();
-                            mp3_read_chunk(&message[7], &strm->endA, &length);
+                        if (mp3_read_chunk(strm->mp3file, &message[9], &strm->endA, &length) == -1) {
+                            reset_mp3_reader(strm->mp3file, strm->aPath);
+                            mp3_read_chunk(strm->mp3file, &message[9], &strm->endA, &length);;
                         }
+                        length += 9;
                         send_UDP_datagram(localSocket, message, length, brokerAddr);
                         memset(message, 0, MAX_BUFFER_SIZE);
+                        strm->aFrame++;
                         //printf("startA: %lf\n", (double)(startA.tv_sec + ((double)startA.tv_usec/1000000.0)));
                         //printf("endA: %lf\n", (double)(endA.tv_sec + ((double)endA.tv_usec/1000000.0)));
                     }

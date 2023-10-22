@@ -51,7 +51,6 @@ void convert_to_jpeg(char* inputImage, int width, int height, unsigned char* out
         jpeg_size = 0;  // Reset the size for the next iteration
         jpeg_mem_dest(&cinfo, &jpeg_data, &jpeg_size);  // Reset memory destination
     }
-
     jpeg_destroy_compress(&cinfo);
 
     // Copy the JPEG data to the output buffer

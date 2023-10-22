@@ -12,7 +12,25 @@ int readLineFromFile(const char *filename, int lineNumber, char *buffer, int buf
         return -1; // Error opening file
     }
 
+    int totalLines = 0;
     int currentLine = 0;
+
+    // Calculate the total number of lines in the file
+    while (fgets(buffer, bufferSize, file) != NULL) {
+        totalLines++;
+    }
+
+    // Rewind the file to the beginning
+    rewind(file);
+
+    if (totalLines == 0) {
+        fclose(file);
+        return 2; // File is empty
+    }
+
+    // Use modulo to wrap around the line number
+    lineNumber = (lineNumber + totalLines) % totalLines;
+
     while (fgets(buffer, bufferSize, file) != NULL) {
         if (currentLine == lineNumber) {
             // Remove the trailing newline character (if it exists)
@@ -24,7 +42,6 @@ int readLineFromFile(const char *filename, int lineNumber, char *buffer, int buf
             return 0; // Successfully read the specified line
         }
         currentLine++;
-
     }
 
     fclose(file);

@@ -31,6 +31,8 @@ struct stream{
     int aFrame;
     int vFrame;
     int tFrame;
+    MP3File * mp3file;
+    MP4File * mp4file;
 };
 
 struct stream_node {

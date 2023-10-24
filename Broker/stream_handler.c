@@ -2,12 +2,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-
-
 // Function to append a stream to the list
-void appendStream(struct stream_list* list, struct stream* data) {
+void appendStream(struct stream_list* list, struct stream* strm) {
     struct stream_node* newNode = malloc(sizeof(struct stream_node));
-    newNode->data = data;
+    newNode->strm = strm;
     newNode->next = NULL;
     if (list->head == NULL) {
         list->head = newNode;
@@ -57,30 +55,32 @@ struct stream* getStream(struct stream_list* list, int position) {
         }
         current = current->next;
     }
-    if (current == NULL || current->data == NULL) {
+    if (current == NULL || current->strm == NULL) {
         return NULL;
     }
-    return current->data;
+    return current->strm;
 }
 
-// Function to get a stream position in the list
+// Function to get the position of a stream in the list
 int getStreamPosition(struct stream_list* list, struct stream* target) {
     if (list->head == NULL) {
         return -1;
     }
 
     struct stream_node* current = list->head;
-    int position = 0;
-    while (current != NULL) {
-        if (current->data == target) {
-            return position;
+    for (int i = 0; i < list->size; i++) {
+        if (current == NULL) {
+            return -1;
+        }
+        if (current->strm == target) {
+            return i;
         }
         current = current->next;
-        position++;
     }
     return -1;
 }
 
+// Function to free the stream list
 void freeStreamList(struct stream_list* list) {
     struct stream_node* current = list->head;
     while (current != NULL) {

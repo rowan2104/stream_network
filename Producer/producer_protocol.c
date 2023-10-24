@@ -55,9 +55,10 @@ int send_request_stream_creation(unsigned char * buf, struct stream * newStream)
     return length;
 }
 
-int send_request_stream_deletion(unsigned char * buf){
+int send_request_stream_deletion(unsigned char * buf, char * stream){
     buf[0] = CONTROL_REQUEST_STREAM_UPDATE;
-    return 4;
+    hexStringToBytes(stream, &buf[1]);
+    return 5;
 }
 
 int send_request_prod_disconnect(unsigned char * buf){

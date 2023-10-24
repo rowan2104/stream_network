@@ -19,6 +19,20 @@ void hexStringToBytes(const char* hexString, unsigned char* bytes) {
     }
 }
 
+
+struct stream * search_stream_id(unsigned char newID[4], struct stream_list * streamList){
+    int i = 0;
+    struct stream * temp;
+    while (getStream(streamList, i) != NULL){
+        temp = getStream(streamList, i);
+        if (memcmp(newID,temp->streamID,4)==0){
+            return temp;
+        }
+        i++;
+    }
+    return NULL;
+}
+
 int send_cons_request_connect(unsigned char * buf){
     buf[0] = CONTROL_CONS_REQUEST_CONNECT;
     int length = 4; //Length is 4 because otherwise UDP gives out errors
@@ -45,13 +59,8 @@ int send_req_list_stream(unsigned char * buf, char * filter) {
     return 4; //length
 }
 
-int send_req_subscribe(unsigned char * buf, char * id, char * type) {
+int send_req_subscribe(unsigned char * buf, char * id) {
     buf[0] = CONTROL_REQ_SUBSCRIBE;
-    for (int i = 0; i < strlen(type); ++i) {
-        if (type[i] == 'a'){buf[0] = buf[0] | AUDIO_BIT;}
-        if (type[i] == 'v'){buf[0] = buf[0] | VIDEO_BIT;}
-        if (type[i] == 't'){buf[0] = buf[0] | TEXT_BIT;}
-    }
     char theID[4];
     hexStringToBytes(id, theID);
     memcpy(&buf[1], theID, 4);

@@ -1,3 +1,4 @@
+Created by Rowan Barr
 First byte: Packet Type byte
 bit 0: data or control
 
@@ -5,8 +6,8 @@ bit 8: for controll, yes or no
 bit 7: for control, request
 
 
-BYTE     :  PURPOSE             : SENDERS - RECIEVERS   : ARG BYTES :               : DATA
-00000000 : ERROR                : (any-any)             : 1         : error code    :
+BYTE     :  PURPOSE
+00000000 : ERROR
 
 
 10000000 : disconnected
@@ -34,15 +35,14 @@ BYTE     :  PURPOSE             : SENDERS - RECIEVERS   : ARG BYTES :           
 
 11101XXX : X stream updated (000 means delete)
 
-00000001 : log_message
-00000011 : critical message (printable)
+00000001 : log_message      (SCAPPED)
+00000011 : critical message (printable) (SCAPPED)
 
 00000001 : video frame
 00000010 : audio frame
 00000100 : text frame
 
 00001000 : tell consumer stream deleted
-00001XXX : tell consumer stream updated
 
 0000 : client disconnected
 0001 : client connected
@@ -60,21 +60,6 @@ BYTE     :  PURPOSE             : SENDERS - RECIEVERS   : ARG BYTES :           
 1101 : stream updated
 1110 : request active streams
 1111 : request stream update
-
-REQ
-cdis - ccon *
-pdis - pcon *
-pSTU : RLST *
-cuns - csub *
-
-COM
-cdis - ccon *
-pdis - pcon *
-pSTU - LIST *
-cuns - csub *
-
-
-
 
 
 01234567

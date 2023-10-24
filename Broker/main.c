@@ -1,3 +1,4 @@
+//Created by Rowan Barr
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,6 +10,7 @@
 #include "broker_structs.h"
 #include "producer_handler.c"
 #include "consumer_handler.c"
+#include "stream_handler.c"
 #include "broker_protocol.c"
 #include "jpg_utils.c"
 
@@ -93,13 +95,17 @@ int unsub_all(struct consumer * requester){
     struct producer * current_producer;
     for (int i = 0; i < connected_producers->size; ++i) {
         current_producer = getProducer(connected_producers, i);
-        if (search_consumers_ip(requester->caddr.ipAddr, current_producer->myStream->subscribers) != NULL) {
-            removeConsumer(current_producer->myStream->subscribers,
-                           getConsumerPosition(current_producer->myStream->subscribers, requester));
-            printf(" subscriber %s:%hu for Stream %s now has unsubscribed\n", requester->caddr.ipAddr,
-                   requester->caddr.portNum,
-                   current_producer->myStream->name);
+        for (int j = 0; j < current_producer->myStreams->size; ++j) {
+            struct stream * strm = getStream(current_producer->myStreams, j);
+            if (search_consumers_ip(requester->caddr.ipAddr, strm->subscribers) != NULL) {
+                removeConsumer(strm->subscribers,
+                               getConsumerPosition(strm->subscribers, requester));
+                printf(" subscriber %s:%hu for Stream %s now has unsubscribed\n", requester->caddr.ipAddr,
+                       requester->caddr.portNum,
+                       strm->name);
+            }
         }
+
     }
     return 0;
 }
@@ -110,15 +116,17 @@ int stop_all(struct producer * requester){
     memcpy(prodID, requester->id, 3);
     char buf[12];
     buf[0] = DATA_STREAM_DELETED;
-    struct stream * currentStream = search_producers_id(prodID, connected_producers)->myStream;
-    memcpy(&buf[1], currentStream->streamID, 4);
-    printf("Here!\n");
-    for (int i = 0; i < currentStream->subscribers->size; ++i) {
-        printf("disconnecting %s\n", getConsumer(currentStream->subscribers, i)->caddr.ipAddr);
-        struct consumer * cConsumer = getConsumer(currentStream->subscribers, i);
-        send_UDP_datagram(serverSocket, buf, 4,
-                          create_destination_socket(cConsumer->caddr.ipAddr, cConsumer->caddr.portNum));
+    for (int i = 0; i < requester->myStreams->size; ++i) {
+        struct stream * currentStream = getStream(requester->myStreams, i);
+        memcpy(&buf[1], currentStream->streamID, 4);
+        for (int j = 0; j < currentStream->subscribers->size; ++j) {
+            printf("unsubbing %s\n", getConsumer(currentStream->subscribers, j)->caddr.ipAddr);
+            struct consumer * cConsumer = getConsumer(currentStream->subscribers, j);
+            send_UDP_datagram(serverSocket, buf, 4,
+                              create_destination_socket(cConsumer->caddr.ipAddr, cConsumer->caddr.portNum));
+        }
     }
+
     memcpy(&buf[1], prodID, 3);
     if (recv_request_delete_stream(buf, connected_producers) == 1){
         printf("ERROR DELETING STREAM!\n");
@@ -130,7 +138,7 @@ void handle_packet(unsigned char * buffer, int packetLength){
     int length = -1;
 
     if (buffer[0] == DATA_VIDEO_FRAME || buffer[0] == DATA_TEXT_FRAME|| buffer[0] == DATA_AUDIO_FRAME) {
-        struct stream * currentStream = search_producers_id(&buffer[1], connected_producers)->myStream;
+        struct stream * currentStream = search_stream_id(&buffer[1], search_producers_id(&buffer[1], connected_producers)->myStreams);
         for (int i = 0; i < currentStream->subscribers->size; ++i) {
             struct consumer * cConsumer = getConsumer(currentStream->subscribers, i);
             send_UDP_datagram(serverSocket, buffer, packetLength,
@@ -163,28 +171,27 @@ void handle_packet(unsigned char * buffer, int packetLength){
         } else if (buffer[0] == CONTROL_REQUEST_STREAM_UPDATE) {
             unsigned char prodID[3];
             buffer[0] = DATA_STREAM_DELETED;
-            struct stream *currentStream = search_producers_id(&buffer[1], connected_producers)->myStream;
+            struct producer * cProd = search_producers_id(&buffer[1], connected_producers);
+            struct stream *currentStream = search_stream_id(&buffer[1], cProd->myStreams);
             for (int i = 0; i < currentStream->subscribers->size; ++i) {
                 struct consumer *cConsumer = getConsumer(currentStream->subscribers, i);
-
                 send_UDP_datagram(serverSocket, buffer, 4,
                                   create_destination_socket(cConsumer->caddr.ipAddr, cConsumer->caddr.portNum));
             }
             if (recv_request_delete_stream(buffer, connected_producers) == 1) {
                 printf("ERROR DELETING STREAM!\n");
             } else {
-                length = 4;
                 buffer[0] = CONTROL_STREAM_UPDATE;
-                length = 4;
+                length = 5;
             }
         } else if ((buffer[0] & TYPE_MASK) == CONTROL_REQUEST_STREAM_UPDATE) {
             printf("Received Stream creation request!\n");
             struct stream *newStream = recv_request_create_stream(buffer, connected_producers);
             if (newStream != NULL) {
                 struct producer *theProd = newStream->creator;
-                if (theProd->myStream == NULL) {
-                    theProd->myStream = newStream;
-                    printf("created a new stream %s, from producer %s\n", theProd->myStream->name, theProd->name);
+                if (search_stream_id(newStream->streamID, theProd->myStreams) == NULL) {
+                    appendStream(theProd->myStreams, newStream);
+                    printf("created a new stream %s, from producer %s\n", newStream->name, theProd->name);
                     printf("stream of type: ");
                     if (newStream->type & AUDIO_BIT) { printf("a"); }
                     if (newStream->type & VIDEO_BIT) { printf("v"); }
@@ -193,8 +200,9 @@ void handle_packet(unsigned char * buffer, int packetLength){
                     dest_addr = theProd->paddr;
                 } else {
                     printf("stream already exists, updating!\n");
-                    theProd->myStream = newStream;
+                    struct stream * strm = search_stream_id(newStream->streamID, theProd->myStreams);
                     printf("stream of type: ");
+                    strm->type = newStream->type;
                     if (newStream->type & AUDIO_BIT) { printf("a"); }
                     if (newStream->type & VIDEO_BIT) { printf("v"); }
                     if (newStream->type & TEXT_BIT) { printf("t"); }
@@ -261,7 +269,7 @@ void handle_packet(unsigned char * buffer, int packetLength){
 
 
 int main() {
-    printf("Broker starting!\n");
+    printf("Broker now running!\n");
     theDestSocket = create_destination_socket("0.0.0.0", 0);
     serverSocket = create_listening_socket();
     connected_producers = malloc(sizeof(struct producer_list));

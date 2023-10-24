@@ -1,3 +1,4 @@
+#Created by Rowan Barr
 FROM ubuntu
 
 
@@ -61,8 +62,8 @@ ENV PATH="/scripts:${PATH}"
 
 
 
-#Set STDERR to stdout I think
+#Set STDERR to STDOUT
 CMD ["bash", "-c", "2>&1"]
-#CMD ["bash", "-c", "bash"]
+
 #Sleep is for time for CMD windows to open
 CMD ["bash", "-c", "sleep 1.2 && gcc -g -o main main.c -ljpeg -lavformat -lavcodec -lavutil  -lffms2 -lswscale `sdl2-config --cflags --libs` && ./main"]

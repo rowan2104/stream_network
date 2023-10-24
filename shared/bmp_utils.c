@@ -1,5 +1,8 @@
+//Created by Rowan Barr
 #include <stdio.h>
 #include <stdlib.h>
+
+
 
 // BMPheader reads in the header info of a BMP file
 //attribute packed is because C would fill struct with padding bytes for alignment, which would

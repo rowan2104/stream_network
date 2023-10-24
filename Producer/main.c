@@ -1,3 +1,5 @@
+//Created by Rowan Barr
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -28,24 +30,23 @@
 
 
 #define MAX_BUFFER_SIZE 66000  // Maximum buffer size for incoming messages
-#define MAX_DATA_SIZE 50000  // Maximum buffer size for incoming messages
+#define MAX_DATA_SIZE 50000  // Maximum bytes size allowed for data packets
 
 
 
 
-
+int localSocket;
 
 char * BROKER_IP_ADDRESS = "172.22.0.2";
 const int DESTINATION_PORT = 50000;
 
 char * stream_target;
 int streaming = 0;
-unsigned char streamType = 0;
 int connected = 0;
 
 
 
-const int vBatchSize = 6;
+const int vBatchSize = 6; //Used to determine how many frames should be decoded from the mp4 at a time
 
 
 
@@ -56,9 +57,8 @@ struct stream_list * myStreams;
 
 
 
-
+//Determine if a given directory/file exists
 int dirExists(char * directoryPath) {
-
     struct stat st;
     char * dir = malloc(strlen(directoryPath) +1);
     strcpy(&dir[1], directoryPath);
@@ -74,7 +74,6 @@ int dirExists(char * directoryPath) {
         printf("%s: The directory does not exist or there was an error.\n", directoryPath);
         return -1;
     }
-
     return 0;
 }
 
@@ -86,16 +85,13 @@ struct timeval addTime(char *input) {
     if (input[0] == '[') {
         int seconds, tenths;
         if (sscanf(input, "[%d:%d]", &seconds, &tenths) == 2) {
-            // Convert tenths of a second to microseconds
+
             long microseconds = tenths * 100000;
 
-            // Make a copy of the global time struct
             gettimeofday(&result, NULL);
-            // Add the specified time interval to the copy
             result.tv_sec += seconds;
             result.tv_usec += microseconds;
 
-            // Normalize the timeval struct
             if (result.tv_usec >= 1000000) {
                 result.tv_sec += result.tv_usec / 1000000;
                 result.tv_usec %= 1000000;
@@ -111,9 +107,9 @@ struct timeval addTime(char *input) {
     return result;
 }
 
+//Create a local socket for sending and recieving stuff from the Broker
 int create_local_socket(){
     int clientSocket;
-
     clientSocket = socket(AF_INET, SOCK_DGRAM, 0);
     if (clientSocket < 0) {
         printf("Error creating local Socket! Return code %i", clientSocket);
@@ -122,6 +118,7 @@ int create_local_socket(){
     return clientSocket;
 }
 
+//Create an address struct to determine where packets are sent to (the broker)
 struct sockaddr_in create_destination_socket(char * destIP, int destPort){
     struct sockaddr_in destAddr;
     memset(&destAddr, 0, sizeof(destAddr));
@@ -136,6 +133,7 @@ struct sockaddr_in create_destination_socket(char * destIP, int destPort){
     return destAddr;
 }
 
+//creates a socket and set it to listen for stuff
 int create_listening_socket() {
     int serverSocket = create_local_socket();
 
@@ -154,7 +152,7 @@ int create_listening_socket() {
     return serverSocket;
 }
 
-
+//Send a packet using a socket, given its size and an address to send to
 void send_UDP_datagram(int clientSocket, unsigned char * buffer, int buf_size, struct sockaddr_in destAddr){
     socklen_t destAddrLen = sizeof(destAddr);
     int rc = sendto(clientSocket, buffer, buf_size, 0, (struct sockaddr *)&destAddr, destAddrLen);
@@ -165,6 +163,7 @@ void send_UDP_datagram(int clientSocket, unsigned char * buffer, int buf_size, s
     }
 }
 
+//Replace a ending newline char with a NULL character
 void trimNewline(char *str) {
     size_t len = strlen(str);
     if (len > 0 && str[len - 1] == '\n') {
@@ -172,6 +171,7 @@ void trimNewline(char *str) {
     }
 }
 
+//Splits a input string into an array of strings seperated by spaces
 char** splitString(char *input, int *count) {
     char **tokens = NULL;
     char *token = strtok(input, " ");
@@ -186,6 +186,7 @@ char** splitString(char *input, int *count) {
     return tokens;
 }
 
+//Creates a stream entry and returns it
 struct stream * create_stream(char * streamNum, char * streamTypes, char * fileName){
     struct stream * newStream = malloc(sizeof(struct stream));
     newStream->streaming = 0;
@@ -193,11 +194,14 @@ struct stream * create_stream(char * streamNum, char * streamTypes, char * fileN
     hexStringToBytes(streamNum, &newStream->streamID[3]);
     snprintf(newStream->name, 9, "%02x%02x%02x%02x", newStream->streamID[0],newStream->streamID[1],newStream->streamID[2],newStream->streamID[3]);
     newStream->target = strdup(fileName);
+    newStream->type = 0;
+    printf("Inputted types: %s\n", streamTypes);
     for (int i = 0; i < strlen(streamTypes); i++) {
         if (streamTypes[i] == 't'){newStream->type = newStream->type | TEXT_BIT;}
         if (streamTypes[i] == 'v'){newStream->type = newStream->type | VIDEO_BIT;}
         if (streamTypes[i] == 'a'){newStream->type = newStream->type | AUDIO_BIT;}
     }
+    printf("set types: %02x\n", newStream->type);
     printf("Stream target set at %s\n", stream_target);
     if (newStream->type & VIDEO_BIT) {
         newStream->vPath = malloc(128);
@@ -218,6 +222,7 @@ struct stream * create_stream(char * streamNum, char * streamTypes, char * fileN
         printf("Video fps: %d\n", newStream->fps);
         printf("vRate: %lf\n", newStream->vRate);
         printf("vpath: %s\n", newStream->vPath);
+        printf("video path: %s\n", newStream->vPath);
     }
 
     if (newStream->type & TEXT_BIT){
@@ -227,6 +232,7 @@ struct stream * create_stream(char * streamNum, char * streamTypes, char * fileN
         newStream->tPath[0] = 0;
         strcat(newStream->tPath, newStream->target);
         strcat(newStream->tPath, "/text.txt");
+        printf("text path: %s\n", newStream->tPath);
     }
 
     if (newStream->type & AUDIO_BIT){
@@ -237,11 +243,13 @@ struct stream * create_stream(char * streamNum, char * streamTypes, char * fileN
         strcat(newStream->aPath, newStream->target);
         strcat(newStream->aPath, "/audio.mp3");
         newStream->aFrame = 0;
+        printf("audio path: %s\n", newStream->aPath);
     }
 
     return newStream;
 }
 
+//Code that handles the recieving of a packet
 void handle_packet(unsigned char * buffer){
     if (buffer[0] == ERROR){
         printf("ERROR PACKET RECEIVED, ERROR CODE %d\n", (int) buffer[1]);
@@ -266,7 +274,6 @@ void handle_packet(unsigned char * buffer){
         if (strm->type & TEXT_BIT){
             strm->textFrame = 0;
         }
-        streamType = 0;
     } else if ((buffer[0] & TYPE_MASK) == CONTROL_STREAM_UPDATE){
         printf("Received stream creation/validation from broker!\n");
         if (access(stream_target, F_OK) != -1) {
@@ -288,7 +295,6 @@ void handle_packet(unsigned char * buffer){
                 strm->textFrame = 0;
                 readLineFromFile(strm->tPath, strm->textFrame, strm->textBuffer, 2048);
                 strm->endT = addTime(strm->textBuffer);
-                strm->textBuffer = &strm->textBuffer[6];
                 printf("start time: %lf\n",(double)(strm->startT.tv_sec) + (double)(strm->startT.tv_usec) / 1000000.0);
                 printf("end time: %lf\n",(double)(strm->endT.tv_sec) + (double)(strm->endT.tv_usec) / 1000000.0);
 
@@ -305,7 +311,7 @@ void handle_packet(unsigned char * buffer){
                 strm->endA.tv_usec = 0;
                 strm->aFrame = 0;
             }
-            if (strm->type == 0){printf("No type! Stopping stream!\n");streaming = 0;}
+            if (strm->type == 0){ printf("No type! Stopping stream!\n"); streaming = 0; }
         } else {
             printf("%s does not exist in the current directory.\n", stream_target);
             streaming = 0;
@@ -314,39 +320,38 @@ void handle_packet(unsigned char * buffer){
         printf("Received successful disconnect!\n");
         int sSize = myStreams->size;
         for (int i = 0; i < sSize; ++i) {
-            struct stream * strm = getStream(myStreams, 0);
+            struct stream * strm = getStream(myStreams, i);
             if (strm->type & AUDIO_BIT){
                 close_mp3(strm->mp3file);
             }
             if (strm->type & VIDEO_BIT){
                 close_mp4(strm->mp4file);
-                strm->codec_opened = 0;
             }
-            if (strm->type & TEXT_BIT){
-                free(strm->textBuffer);
-            }
+            printf("freeing stream!\n");
+            free(strm);
+            printf("Freed stream!\n");
         }
-        freeStreamList(myStreams);
-        myStreams->head = NULL;
-        myStreams->size = 0;
-        memset(myID, 0, 3);
+        close(localSocket);
+        system("./main");
+        exit(0);
+
     }
 }
 
-
+//Mesure and prints the time different of two struct timevals (used in debugging)
 void measure_print_time(struct timeval a, struct timeval b, char * message){
     double elapsedTime  = (double)(b.tv_sec - a.tv_sec) + (double)(b.tv_usec - a.tv_usec) / 1000000.0;
     printf("%s : %lf\n", message, elapsedTime);
 }
 
 int main() {
-    printf("Server Container now running!\n");
+    printf("Server now running!\n");
 
     myStreams = malloc(sizeof(struct stream_list));
     myStreams->head = NULL;
     myStreams->size = 0;
 
-    int localSocket = create_listening_socket();
+    localSocket = create_listening_socket();
 
     struct sockaddr_in brokerAddr = create_destination_socket(BROKER_IP_ADDRESS, DESTINATION_PORT);
 
@@ -402,16 +407,29 @@ int main() {
                             strm->currentFrame = 0;
                             int rc = decode_frames(strm->mp4file, vBatchSize, strm->decodedFrameBuf);
                             if (rc == -1) {
-                                printf("Reached end of video file, resetting!");
-                                decode_frames(strm->mp4file, vBatchSize, strm->decodedFrameBuf);
+                                printf("Reached end of video file, resetting!\n");
+                                rc = decode_frames(strm->mp4file, vBatchSize, strm->decodedFrameBuf);
+                                if (rc != 0){
+                                    printf("Failed to decode frames!!!!\n");
+                                }
                             }
                         }
                         int Jsize = 0;
                         //char fName[50];
-                        //snprintf(fName, sizeof(fName), "frame_%d.bmp", vFrame);
-                        //createBMP(fName, decodedFrameBuf[currentFrame], vWidth, vHeight);
+                        //snprintf(fName, sizeof(fName), "%s_%d.bmp", strm->name,strm->vFrame);
+                        //createBMP(fName, strm->decodedFrameBuf[strm->currentFrame], strm->vWidth, strm->vHeight);
                         convert_to_jpeg(strm->decodedFrameBuf[strm->currentFrame], strm->vWidth, strm->vHeight, &message[9], &Jsize,
                                         MAX_DATA_SIZE / 2);
+                        /*
+                        char s[13];
+                        s[12] = 0;
+                        memcpy(s, &message[9], 12);
+                        printf("jpeg bytes: ");
+                        for (int j = 0; j < 12; ++j) {
+                            printf("%02x", s[j]);
+                        }
+                        printf("\n");
+                         */
                         strm->vFrame++;
                         short vidWidth = strm->vWidth;
                         short vidHeight = strm->vHeight;
@@ -424,13 +442,8 @@ int main() {
 
                         memcpy(&message[5], &strm->vFrame, 4);
                         int length = 0;
-                        if (totalSize < vDataSize) {
-                            memcpy(&message[9], &message[9 + (vDataSize * i)], totalSize);
-                            length = 9 + totalSize;
-                        } else {
-                            memcpy(&message[9], &message[9 + (vDataSize * i)], vDataSize);
-                            length = 9 + vDataSize;
-                        }
+                        length = 9 + Jsize;
+
                         send_UDP_datagram(localSocket, message, length, brokerAddr);
 
                         strm->currentFrame++;
@@ -442,14 +455,13 @@ int main() {
                     elapsedTime = (double) (strm->endT.tv_sec - currentTime.tv_sec) +
                                   (double) (strm->endT.tv_usec - currentTime.tv_usec) / 1000000.0;
                     if (elapsedTime < 0 && (strm->type & TEXT_BIT)) {
-                        strm->textFrame += 1;
                         readLineFromFile(strm->tPath, strm->textFrame, strm->textBuffer, 2048);
+                        strm->textFrame += 1;
                         strm->endT = addTime(strm->textBuffer);
-                        strm->textBuffer = &strm->textBuffer[6]; //Remmove the [X:Y]
                         message[0] = DATA_TEXT_FRAME;
                         memcpy(&message[1], strm->streamID, 4);
-                        memcpy(&message[5], strm->textBuffer, strlen(strm->textBuffer) + 1);
-                        int length = 5 + strlen(strm->textBuffer) + 1;
+                        memcpy(&message[5], &strm->textBuffer[6], strlen(&strm->textBuffer[6]) + 1);
+                        int length = 5 + strlen(&strm->textBuffer[6]) + 1;
                         send_UDP_datagram(localSocket, message, length, brokerAddr);
                         memset(message, 0, MAX_BUFFER_SIZE);
                     }
@@ -515,7 +527,8 @@ int main() {
                         printf("Target set as %s\n", stream_target);
                     }
                 } else if(strcmp(input_array[0], "delete") == 0) {
-                    length = send_request_stream_deletion(message);
+                    if (input_count < 2) { printf("Error no stream specified!\n"); }
+                    length = send_request_stream_deletion(message, input_array[1]);
                     memcpy(&message[1], myID, 3);
                 } else if (strcmp(input_array[0], "disconnect") == 0){
                     length = send_request_prod_disconnect(message);

@@ -26,6 +26,19 @@ struct producer * search_producers_id(unsigned char newID[3], struct producer_li
     return NULL;
 }
 
+struct stream * search_stream_id(unsigned char newID[4], struct stream_list * strmList){
+    int i = 0;
+    struct stream * temp;
+    while (getStream(strmList, i) != NULL){
+        temp = getStream(strmList, i);
+        if (memcmp(newID, temp->streamID, 4) == 0){
+            return temp;
+        }
+        i++;
+    }
+    return NULL;
+}
+
 
 struct consumer * search_consumers_ip(char * ip, struct consumer_list * consList){
     int i = 0;
@@ -54,15 +67,15 @@ struct producer * search_producer_ip(char * ip, struct producer_list * prodList)
 struct producer * search_producer_streamid(unsigned char newID[4], struct producer_list * prodList){
     int i = 0;
     struct producer * temp;
-    print_id2(newID);
-    printf("\n");
     while (getProducer(prodList, i) != NULL){
         temp = getProducer(prodList, i);
-        print_id2(temp->myStream->streamID);
-        printf("\n");
-        if (newID[0] == temp->myStream->streamID[0] && newID[1] == temp->myStream->streamID[1] && newID[2] == temp->myStream->streamID[2] && newID[3] == temp->myStream->streamID[3]){
-            return temp;
+        for (int j = 0; j < temp->myStreams->size; ++j) {
+            struct stream * x = getStream(temp->myStreams, j);
+            if (newID[0] == x->streamID[0] && newID[1] == x->streamID[1] && newID[2] == x->streamID[2] && newID[3] == x->streamID[3]){
+                return temp;
+            }
         }
+
         i++;
     }
     return NULL;
@@ -90,7 +103,8 @@ int add_new_producer(unsigned char newID[3], struct producer_list * prodList, ad
         sprintf(temp->name, "%02x%02x%02x", newID[0], newID[1], newID[2]);
         temp->name[6] = 0;
         memcpy(temp->id, newID, 3);
-        temp->myStream = NULL;
+        temp->myStreams = malloc(sizeof(struct stream_list));
+        temp->myStreams->size = 0;
         appendProducer(prodList, temp);
         return lastPos;
     }
@@ -141,6 +155,7 @@ struct stream *  recv_request_create_stream(unsigned char * buf, struct producer
     if (newStream->type & VIDEO_BIT){
         memcpy(&newStream->vWidth, &buf[header], 2);
         memcpy(&newStream->vHeight, &buf[header+2], 2);
+        printf("storing video resolution: %hu x %hu\n",newStream->vWidth,newStream->vHeight);
         header += 4;
     }
     return newStream;
@@ -149,8 +164,15 @@ struct stream *  recv_request_create_stream(unsigned char * buf, struct producer
 int recv_request_delete_stream(unsigned char * buf, struct producer_list * prodList){
     struct producer * currentProd = search_producers_id(&buf[1], prodList);
     if (currentProd == NULL){return 1;}
-    freeConsumerList(currentProd->myStream->subscribers);
-    currentProd->myStream = NULL;
+    unsigned char id[4];
+    memcpy(id, &buf[1], 4);
+    struct stream * strm = search_stream_id(id, currentProd->myStreams);
+    if (strm != NULL) {
+        freeConsumerList(strm->subscribers);
+        removeStream(currentProd->myStreams, getStreamPosition(currentProd->myStreams, strm));
+    } else {
+        printf("Stream not found!\n");
+    }
     return 0;
 }
 
@@ -163,13 +185,17 @@ int send_list_stream(unsigned char * buf, struct producer_list * prodList){
     struct producer * current_prod;
     for (int i = 0; i < prodList->size; ++i) {
         current_prod = getProducer(prodList, i);
-        if ((current_prod->myStream != NULL) && ((current_prod->myStream->type & requestType) != 0))
+        if ((current_prod->myStreams != NULL))
         {
-            memcpy(&buf[5+(sizeStreamData*num_of_streams)], &current_prod->myStream->streamID, 4);
-            buf[5+(sizeStreamData*num_of_streams)+4] = current_prod->myStream->type;
-            num_of_streams++;
-            length += sizeStreamData;
-
+            for (int j = 0; j < current_prod->myStreams->size; ++j) {
+                if ((getStream(current_prod->myStreams, j)->type & requestType) != 0) {
+                    struct stream * strm = getStream(current_prod->myStreams, j);
+                    memcpy(&buf[5 + (sizeStreamData * num_of_streams)], &strm->streamID, 4);
+                    buf[5 + (sizeStreamData * num_of_streams) + 4] = strm->type;
+                    num_of_streams++;
+                    length += sizeStreamData;
+                }
+            }
         }
     }
     buf[0] = CONTROL_LIST_STREAM | requestType;
@@ -178,22 +204,24 @@ int send_list_stream(unsigned char * buf, struct producer_list * prodList){
 }
 
 int recv_req_stream_subscribe(unsigned char * buf, struct consumer * requester, struct producer_list * prodList){
-    char types = buf[0] & (~TYPE_MASK);
     struct producer * current_producer;
     unsigned char packet_id[4];
     memcpy(packet_id, &buf[1], 4);
-    current_producer = search_producer_streamid(&buf[1], prodList);
+    current_producer = search_producers_id(&buf[1], prodList);
     if (current_producer == NULL){
+        printf("Streamer not found!\n");
+        return -1;
+    }
+    struct stream * strm = search_stream_id(&buf[1],current_producer->myStreams);
+    if (strm == NULL){
         printf("Stream not found!\n");
         return -1;
     }
-    if (search_consumers_ip(requester->caddr.ipAddr, current_producer->myStream->subscribers) == NULL) {
-        if (current_producer->myStream->type & (buf[0] & ~TYPE_MASK) == 0) {
-            printf("Error, subscribe request types are not valid!");
-        }
-        appendConsumer(current_producer->myStream->subscribers, requester);
-        printf("Stream %s now has subscriber %s:%hu\n", current_producer->myStream->name,
+    if (search_consumers_ip(requester->caddr.ipAddr, strm->subscribers) == NULL) {
+        appendConsumer(strm->subscribers, requester);
+        printf("Stream %s now has subscriber %s:%hu\n", strm->name,
                requester->caddr.ipAddr, requester->caddr.portNum);
+        char types = strm->type;
         printf("Content types: ");
         if (types & AUDIO_BIT) { printf("a"); }
         if (types & VIDEO_BIT) { printf("v"); }
@@ -202,11 +230,12 @@ int recv_req_stream_subscribe(unsigned char * buf, struct consumer * requester, 
         printf("Sending Confirmation\n");
         buf[0] = CONTROL_SUBSCRIBE;
         buf[0] = buf[0] | types;
-        memcpy(&buf[1], current_producer->myStream->streamID, 4);
+        memcpy(&buf[1], strm->streamID, 4);
         int header = 5;
-        if (current_producer->myStream->type & VIDEO_BIT) {
-            memcpy(&buf[header], &current_producer->myStream->vWidth, 2);
-            memcpy(&buf[header + 2], &current_producer->myStream->vHeight, 2);
+        if (strm->type & VIDEO_BIT) {
+            memcpy(&buf[header], &strm->vWidth, 2);
+            memcpy(&buf[header + 2], &strm->vHeight, 2);
+            printf("sending video resolution: %hu x %hu\n",strm->vWidth,strm->vHeight);
             header += 4;
         }
         return header;
@@ -224,21 +253,28 @@ int recv_req_stream_subscribe(unsigned char * buf, struct consumer * requester, 
 int recv_req_stream_unsubscribe(unsigned char * buf, struct consumer * requester, struct producer_list * prodList){
     unsigned char packet_id[4];
     memcpy(packet_id, &buf[1], 4);
-    struct producer * current_producer = search_producer_streamid(packet_id, prodList);
+    struct producer * current_producer = search_producers_id(packet_id, prodList);
     if (current_producer == NULL){
+        printf("ERROR, STREAMER %02x%02x%02x not found!\n",packet_id[0],packet_id[1],packet_id[2]);
+        buf[0] == ERROR;
+        memset(&buf[1],0,3);
+        return 4;
+    }
+    struct stream * strm = search_stream_id(packet_id, current_producer->myStreams);
+    if (strm == NULL){
         printf("ERROR, STREAM %02x%02x%02x%02x not found!\n",packet_id[0],packet_id[1],packet_id[2],packet_id[3]);
         buf[0] == ERROR;
         memset(&buf[1],0,3);
         return 4;
     }
 
-    if (search_consumers_ip(requester->caddr.ipAddr, current_producer->myStream->subscribers) != NULL) {
-        removeConsumer(current_producer->myStream->subscribers, getConsumerPosition(current_producer->myStream->subscribers, requester));
+    if (search_consumers_ip(requester->caddr.ipAddr, strm->subscribers) != NULL) {
+        removeConsumer(strm->subscribers, getConsumerPosition(strm->subscribers, requester));
         printf(" subscriber %s:%hu for Stream %s now has unsubscribed\n", requester->caddr.ipAddr, requester->caddr.portNum,
-            current_producer->myStream->name);
+               strm->name);
         printf("Sending Confirmation\n");
         buf[0] = CONTROL_UNSUBSCRIBE;
-        memcpy(&buf[1], current_producer->myStream->streamID, 4);
+        memcpy(&buf[1], strm->streamID, 4);
         int header = 5;
         return header;
     }else {

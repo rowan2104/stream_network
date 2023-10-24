@@ -1,3 +1,4 @@
+//Created by Rowan Barr
 #include <stdio.h>
 #include <jpeglib.h>
 #include <stdlib.h>

@@ -24,6 +24,16 @@ struct stream{
     short vHeight;
 };
 
+struct stream_node {
+    struct stream* strm;
+    struct stream_node* next;
+};
+
+struct stream_list {
+    struct stream_node* head;
+    int size;
+};
+
 struct consumer{
     address caddr;
     char * name;
@@ -44,7 +54,7 @@ struct producer{
     address paddr;
     unsigned char id[3];
     char * name;
-    struct stream * myStream;
+    struct stream_list * myStreams;
 };
 
 struct producer_node {

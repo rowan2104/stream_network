@@ -57,3 +57,10 @@ unsubscribe <streamid> : unsubscribe to a given stream via its streamID
 eg: unsubscribe ab01ff01
 
 disconnect : disconnect the consumer from the broker
+
+
+
+New content can be added that can be streamed. Create a new folder in the producer folder titled whater you want
+then add in the content file to it, making sure they are called audio.mp3, text.txt or video.mp4.
+From there they will be copied into the container on rebuild and can be streamed
+noe for text.txt, you must include timestamps at the beginning of every line in the format used in the existing files.

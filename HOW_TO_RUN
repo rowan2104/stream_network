@@ -49,6 +49,8 @@ Consumer:
 connect  : connects the consumer to the broker
 
 list    : request a list of all active streams from the broker
+optional, can add content types to filter searc
+eg: list av    will request streams of that either have a text component or audio component
 
 subscribe <streamid> : subscribe to a given stream via its streamID
 eg: subscribe ab01ff01

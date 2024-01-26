@@ -26,14 +26,8 @@
 #include "mem_tool.c"
 #include <sys/stat.h>
 
-
-
-
 #define MAX_BUFFER_SIZE 66000  // Maximum buffer size for incoming messages
 #define MAX_DATA_SIZE 50000  // Maximum bytes size allowed for data packets
-
-
-
 
 int localSocket;
 
@@ -44,18 +38,11 @@ char * stream_target;
 int streaming = 0;
 int connected = 0;
 
-
-
 const int vBatchSize = 6; //Used to determine how many frames should be decoded from the mp4 at a time
-
-
-
 
 unsigned char myID[3];
 
 struct stream_list * myStreams;
-
-
 
 //Determine if a given directory/file exists
 int dirExists(char * directoryPath) {
@@ -415,24 +402,9 @@ int main() {
                             }
                         }
                         int Jsize = 0;
-                        //char fName[50];
-                        //snprintf(fName, sizeof(fName), "%s_%d.bmp", strm->name,strm->vFrame);
-                        //createBMP(fName, strm->decodedFrameBuf[strm->currentFrame], strm->vWidth, strm->vHeight);
                         convert_to_jpeg(strm->decodedFrameBuf[strm->currentFrame], strm->vWidth, strm->vHeight, &message[9], &Jsize,
                                         MAX_DATA_SIZE / 2);
-                        /*
-                        char s[13];
-                        s[12] = 0;
-                        memcpy(s, &message[9], 12);
-                        printf("jpeg bytes: ");
-                        for (int j = 0; j < 12; ++j) {
-                            printf("%02x", s[j]);
-                        }
-                        printf("\n");
-                         */
                         strm->vFrame++;
-                        short vidWidth = strm->vWidth;
-                        short vidHeight = strm->vHeight;
                         int packetSize = (MAX_DATA_SIZE / 2) + 9;
                         int vDataSize = packetSize - 9;
                         message[0] = DATA_VIDEO_FRAME;
@@ -483,8 +455,6 @@ int main() {
                         send_UDP_datagram(localSocket, message, length, brokerAddr);
                         memset(message, 0, MAX_BUFFER_SIZE);
                         strm->aFrame++;
-                        //printf("startA: %lf\n", (double)(startA.tv_sec + ((double)startA.tv_usec/1000000.0)));
-                        //printf("endA: %lf\n", (double)(endA.tv_sec + ((double)endA.tv_usec/1000000.0)));
                     }
                 }
             }
